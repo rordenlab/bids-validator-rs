@@ -1,0 +1,14 @@
+[package]
+name = "bids-expr"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+indexmap.workspace = true
+regex = "1"
+
+[dev-dependencies]
+bids-schema-codegen = { path = "../bids-schema-codegen" }

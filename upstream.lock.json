@@ -1,0 +1,6 @@
+{
+  "bids_validator_version": "2.4.1",
+  "bids_validator_commit": "94ea9719efbbac7531fed8ad8a2a7bf764cee51f",
+  "archive_url": "https://github.com/bids-standard/bids-validator/archive/94ea9719efbbac7531fed8ad8a2a7bf764cee51f.tar.gz",
+  "vendor_dir": "vendor/bids-validator-2.4.1"
+}

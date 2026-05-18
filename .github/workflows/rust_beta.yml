@@ -1,0 +1,66 @@
+---
+name: Rust beta
+
+on:
+  push:
+    branches: [main, dev, maint/*]
+    paths:
+      - "**/*.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "schemas/**"
+      - "tests/**"
+      - "scripts/**"
+      - ".github/workflows/rust_beta.yml"
+  pull_request:
+    branches: [main, dev, maint/*]
+    paths:
+      - "**/*.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "schemas/**"
+      - "tests/**"
+      - "scripts/**"
+      - ".github/workflows/rust_beta.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cli:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+      - name: Install Rust components
+        run: rustup component add clippy rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Test
+        run: cargo test --workspace --locked
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Dependency policy
+        run: |
+          if command -v cargo-deny >/dev/null 2>&1; then
+            cargo deny check
+          else
+            echo "cargo-deny not installed; run cargo deny check before release."
+          fi
+      - name: Release build
+        run: cargo build --release --locked
+      - name: Smoke test
+        working-directory: .
+        run: python3 scripts/beta_smoke.py --bin target/release/bids-validator --skip-external

@@ -1,0 +1,44 @@
+{
+  "valid_headers": [
+    {
+      "code": "NO_AUTHORS",
+      "location": "/dataset_description.json",
+      "subCode": "Authors",
+      "issueMessage": "Field description: List of individuals who contributed to the creation/curation of the dataset.\n",
+      "codeMessage": "The Authors field of dataset_description.json should contain an array of fields -\nwith one author per field. This was triggered because there are no authors, which\nwill make DOI registration from dataset metadata impossible.\n"
+    },
+    {
+      "code": "TOO_FEW_AUTHORS",
+      "location": "/dataset_description.json",
+      "issueMessage": null,
+      "codeMessage": "The 'Authors' field of 'dataset_description.json' should contain an array of values -\nwith one author per value.\nThis was triggered based on the presence of only one author field.\nPlease ignore if all contributors are already properly listed.\n"
+    },
+    {
+      "code": "SFORM_AND_QFORM_IN_IMAGE_HEADER_ARE_ZERO",
+      "location": "/sub-01/func/sub-01_task-rhymejudgment_bold.nii.gz",
+      "issueMessage": null,
+      "codeMessage": "sform_code and qform_code in the image header are 0.\nThe image/file will be considered invalid or assumed to be in LAS orientation.\n"
+    }
+  ],
+  "no_t1w": [
+    {
+      "code": "ENTITY_WITH_NO_LABEL",
+      "location": "/sub-01/func/sub-01_task-rhyme_judgment_events.tsv",
+      "issueMessage": "judgment",
+      "codeMessage": "Found an entity with no label."
+    },
+    {
+      "code": "ENTITY_NOT_IN_RULE",
+      "location": "/sub-01/func/sub-01_task-rhyme_judgment_events.tsv",
+      "issueMessage": "judgment not in rule rules.files.raw.events.events__mri",
+      "codeMessage": "Entity not listed as required or optional for files with this suffix",
+      "rule": "rules.files.raw.events.events__mri"
+    },
+    {
+      "code": "INVALID_ENTITY_LABEL",
+      "location": "/sub-01/func/sub-0-1_task-rhymejudgment_bold.nii.gz",
+      "issueMessage": "entity: sub label: 0-1 pattern: [0-9a-zA-Z+]+",
+      "codeMessage": "entity label doesn't match format found for files with this suffix"
+    }
+  ]
+}
