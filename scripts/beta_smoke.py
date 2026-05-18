@@ -12,12 +12,13 @@ import json
 import shlex
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BIN = ROOT / "target/release/bids-validator"
-SMALL_DATASET = ROOT / "vendor/bids-validator-2.4.1/tests/data/valid_headers"
+DEFAULT_SMALL_DATASET = ROOT / "vendor/bids-validator-2.4.1/tests/data/valid_headers"
 DEFAULT_EXTERNAL = Path("/Users/chris/src/bidsui/datasets/ds002606")
 
 VERSION_FIELDS = [
@@ -51,6 +52,15 @@ def main() -> int:
         help="optional larger dataset to test if it exists",
     )
     parser.add_argument(
+        "--small-dataset",
+        default=DEFAULT_SMALL_DATASET,
+        type=Path,
+        help=(
+            "small dataset to smoke test; if absent, a temporary in-repo-free "
+            "fixture is generated"
+        ),
+    )
+    parser.add_argument(
         "--skip-external",
         action="store_true",
         help="skip the optional external dataset even if it exists",
@@ -82,13 +92,44 @@ def main() -> int:
         return 2
     print(version.stdout.strip())
 
-    smoke_dataset("small", binary, SMALL_DATASET)
+    if args.small_dataset.exists():
+        smoke_dataset("small", binary, args.small_dataset)
+    else:
+        with tempfile.TemporaryDirectory(prefix="bids-validator-smoke-") as tmpdir:
+            generated = make_temporary_smoke_dataset(Path(tmpdir))
+            print(
+                "small: generated temporary fixture because dataset was not found: "
+                f"{args.small_dataset}"
+            )
+            smoke_dataset("small", binary, generated)
+
     if not args.skip_external and args.external_dataset.exists():
         smoke_dataset("external", binary, args.external_dataset)
     elif not args.skip_external:
         print(f"external: skipped, dataset not found: {args.external_dataset}")
 
     return 0
+
+
+def make_temporary_smoke_dataset(tmpdir: Path) -> Path:
+    """Create a tiny dataset so CI smoke tests do not depend on ignored vendor data."""
+    root = tmpdir / "dataset"
+    anat = root / "sub-01" / "anat"
+    anat.mkdir(parents=True)
+    (root / "dataset_description.json").write_text(
+        json.dumps(
+            {
+                "Name": "Rust beta smoke dataset",
+                "BIDSVersion": "1.10.0",
+                "DatasetType": "raw",
+            }
+        ),
+        encoding="utf-8",
+    )
+    # A non-empty placeholder exercises traversal and issue JSON emission
+    # without requiring binary test fixtures in the repository.
+    (anat / "sub-01_T1w.nii.gz").write_bytes(b"not-a-nifti")
+    return root
 
 
 def smoke_dataset(label: str, binary: Path, dataset: Path) -> None:
@@ -103,7 +144,18 @@ def smoke_dataset(label: str, binary: Path, dataset: Path) -> None:
         ],
         allow_validation_exit=True,
     )
-    payload = json.loads(result.stdout)
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        print(
+            f"{label}: validator did not emit JSON for dataset: {dataset}",
+            file=sys.stderr,
+        )
+        if result.stdout:
+            print(result.stdout[-2000:], file=sys.stderr)
+        if result.stderr:
+            print(result.stderr[-2000:], file=sys.stderr)
+        raise SystemExit(2) from exc
     issues = payload["issues"]["issues"]
     digest = hashlib.sha256(result.stdout.encode("utf-8")).hexdigest()
     print(

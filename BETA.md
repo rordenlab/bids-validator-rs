@@ -197,9 +197,10 @@ python3 scripts/beta_smoke.py --bin /path/to/bids-validator
 ```
 
 The smoke test prints the exact command, version output, exit code,
-issue count, and SHA-256 hash of each JSON output. It always validates
-the small in-tree fixture and validates `/Users/chris/src/bidsui/datasets/ds002606`
-when present.
+issue count, and SHA-256 hash of each JSON output. It validates the
+small pinned upstream fixture when available, otherwise it creates a
+temporary tiny dataset for CI/artifact smoke coverage. It also validates
+`/Users/chris/src/bidsui/datasets/ds002606` when present.
 
 ## Reporting Issues
 
