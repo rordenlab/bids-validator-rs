@@ -57,8 +57,24 @@ name = "validator_perf"
 harness = false
 
 [profile.release]
-lto = "thin"
+# Mirrors BIDSvue's host-shell release profile so the bundled
+# sidecar ships as small as possible (2026-05-20).
+# - `lto = true`: full link-time optimization. Trades ~3x slower
+#   release link for an extra 5-10% binary shrink vs thin LTO
+#   (which this used previously). Worth it for a binary that ships
+#   to distribution + is rebuilt rarely.
+# - `codegen-units = 1`: single CGU gives LTO maximum visibility.
+# - `strip = "symbols"`: drop the debug-symbol table; we don't
+#   ship .dSYM bundles.
+# - `panic = "abort"`: drop the panic-unwinding tables. Safe
+#   because no code in this workspace uses `catch_unwind` /
+#   `panic::set_hook` (verified by `grep -rn` across src/ +
+#   crates/). A panic aborts the validator process, which is
+#   the right behavior for a one-shot CLI tool.
+lto = true
 codegen-units = 1
+strip = "symbols"
+panic = "abort"
 
 [profile.dev]
 debug = "line-tables-only"
