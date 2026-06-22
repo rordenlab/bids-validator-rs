@@ -206,6 +206,11 @@ RUST_CODES = {
     # reachable — MRS_NIFTI_CONSISTENCY needs the NIfTI-MRS header
     # extension (nifti_header.mrs), not yet parsed by Rust.
     "MRS_MATRIX_SIZE",
+    # Assorted sidecar-value / TSV-column checks (crafted-fixture verified
+    # vs Deno 2.4.1; see crates/bids-core/tests/misc_value_checks.rs).
+    "EVENT_ONSET_ORDER",
+    "PHASE_SUFFIX_DEPRECATED",
+    "PHASE_UNITS",
     # rules.errors emissions (Phase 1 scope expansion)
     "SIDECAR_WITHOUT_DATAFILE",
     # Electrophysiology channel-count checks (exercised by eeg_face13).
