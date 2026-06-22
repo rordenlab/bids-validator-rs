@@ -71,20 +71,60 @@ fn phase_suffix_deprecated_fires() {
 }
 
 #[test]
-fn phase_units_fires_for_non_rad_units() {
-    // part-phase image with Units "deg" (not rad/arbitrary).
+fn phase_suffix_silent_for_canonical_bold() {
+    // Negative control: a plain `bold` suffix must not trip the check.
     let img = bold4d();
     let (_t, ctx) = build_ctx(&[
         ("/dataset_description.json", DD),
-        ("/sub-01/func/sub-01_part-phase_task-rest_bold.nii", &img),
-        (
-            "/sub-01/func/sub-01_part-phase_task-rest_bold.json",
-            br#"{"TaskName": "rest", "RepetitionTime": 2.0, "Units": "deg"}"#,
-        ),
+        ("/sub-01/func/sub-01_task-rest_bold.nii", &img),
+        ("/sub-01/func/sub-01_task-rest_bold.json", BOLD_JSON),
     ]);
     let r = validate_dataset(&ctx);
+    assert!(issue_locations(&r.issues.issues, "PHASE_SUFFIX_DEPRECATED").is_empty());
+}
+
+// Canonical entity order is `task-` before `part-`, so the basename matches
+// the schema's reconstructed order and no FILENAME_MISMATCH is emitted.
+const PHASE_BOLD: &str = "/sub-01/func/sub-01_task-rest_part-phase_bold.nii";
+
+fn phase_units_issues(units_json: &[u8]) -> Vec<bids_core::issue::Issue> {
+    let img = bold4d();
+    let (_t, ctx) = build_ctx(&[
+        ("/dataset_description.json", DD),
+        (PHASE_BOLD, &img),
+        (
+            "/sub-01/func/sub-01_task-rest_part-phase_bold.json",
+            units_json,
+        ),
+    ]);
+    validate_dataset(&ctx).issues.issues
+}
+
+#[test]
+fn phase_units_fires_for_non_rad_units() {
+    let issues =
+        phase_units_issues(br#"{"TaskName": "rest", "RepetitionTime": 2.0, "Units": "deg"}"#);
     assert_eq!(
-        issue_locations(&r.issues.issues, "PHASE_UNITS"),
-        vec!["/sub-01/func/sub-01_part-phase_task-rest_bold.nii"]
+        issue_locations(&issues, "PHASE_UNITS"),
+        vec![PHASE_BOLD.to_string()]
     );
+    // The fixture should be otherwise well-formed (canonical entity order).
+    assert!(
+        issue_locations(&issues, "FILENAME_MISMATCH").is_empty(),
+        "fixture must not trip unrelated filename checks"
+    );
+}
+
+#[test]
+fn phase_units_silent_for_rad_and_arbitrary() {
+    for ok in [
+        br#"{"TaskName":"rest","RepetitionTime":2.0,"Units":"rad"}"#.as_slice(),
+        br#"{"TaskName":"rest","RepetitionTime":2.0,"Units":"arbitrary"}"#.as_slice(),
+    ] {
+        let issues = phase_units_issues(ok);
+        assert!(
+            issue_locations(&issues, "PHASE_UNITS").is_empty(),
+            "rad/arbitrary units must not fire PHASE_UNITS"
+        );
+    }
 }
