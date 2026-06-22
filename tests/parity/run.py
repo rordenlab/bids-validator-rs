@@ -186,6 +186,12 @@ RUST_CODES = {
     "DEPRECATED_ACQUISITION_DURATION",
     "BACKGROUND_SUPPRESSION_PULSE_NUMBER_NOT_CONSISTENT",
     "TOTAL_ACQUIRED_VOLUMES_NOT_CONSISTENT",
+    # PET frame-timing family (crafted-fixture verified vs Deno 2.4.1;
+    # see crates/bids-core/tests/pet_checks.rs).
+    "PET_FRAME_CONSISTENCY",
+    "PET_FRAME_CONSISTENCY_FRAME_DURATION",
+    "PET_FRAME_CONSISTENCY_FRAME_TIMES_START",
+    "NIFTI_PIXDIM_PET",
     # rules.errors emissions (Phase 1 scope expansion)
     "SIDECAR_WITHOUT_DATAFILE",
     # Electrophysiology channel-count checks (exercised by eeg_face13).
