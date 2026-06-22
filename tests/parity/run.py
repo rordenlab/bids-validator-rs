@@ -142,6 +142,12 @@ RUST_CODES = {
     "MAGNITUDE_FILE_WITH_TOO_MANY_DIMENSIONS",
     "EPI_WITH_BVALS_NEEDS_SMALL_BVALS",
     "TOTAL_READOUT_TIME_MUST_DEFINE",
+    # NIfTI dimension/pixdim family (crafted-fixture verified vs Deno 2.4.1;
+    # see crates/bids-core/tests/nifti_checks.rs).
+    "T1W_FILE_WITH_TOO_MANY_DIMENSIONS",
+    "BOLD_NOT_4D",
+    "NIFTI_DIMENSION",
+    "NIFTI_PIXDIM",
     # rules.errors emissions (Phase 1 scope expansion)
     "SIDECAR_WITHOUT_DATAFILE",
     # Electrophysiology channel-count checks (exercised by eeg_face13).
