@@ -56,6 +56,8 @@ DATASETS = {
     "emg_Multimodal": ROOT / "data/emg_Multimodal",  # EMG channels/coordsystem
     "fnirs_tapping": ROOT / "data/fnirs_tapping",  # NIRS channels
     "eeg_rest_fmri": ROOT / "data/eeg_rest_fmri",  # EEG + events
+    "asl001": ROOT / "data/asl001",  # ASL (aslcontext, perf sidecar)
+    "pet003": ROOT / "data/pet003",  # PET (frame timing sidecar)
 }
 
 # Multiset parity is judged against these codes (the Rust validator emits
