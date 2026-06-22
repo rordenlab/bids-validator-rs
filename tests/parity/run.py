@@ -201,6 +201,11 @@ RUST_CODES = {
     "ECHO_TIME_GREATER_THAN",
     "EFFECTIVEECHOSPACING_TOO_LARGE",
     "EFFECTIVEECHOSPACING_LARGER_THAN_TOTALREADOUTTIME",
+    # MRS (crafted-fixture verified vs Deno 2.4.1; see
+    # crates/bids-core/tests/mrs_checks.rs). Only MRS_MATRIX_SIZE is
+    # reachable — MRS_NIFTI_CONSISTENCY needs the NIfTI-MRS header
+    # extension (nifti_header.mrs), not yet parsed by Rust.
+    "MRS_MATRIX_SIZE",
     # rules.errors emissions (Phase 1 scope expansion)
     "SIDECAR_WITHOUT_DATAFILE",
     # Electrophysiology channel-count checks (exercised by eeg_face13).
