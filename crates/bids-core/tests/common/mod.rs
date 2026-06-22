@@ -33,9 +33,39 @@ pub fn infer_datatype(bids_path: &str) -> String {
     }
 }
 
+/// Minimal uncompressed NIfTI-1 with caller-chosen `dim` and `pixdim`
+/// (8 entries each: index 0 is ndims / qfac, `1..` are extents / voxel
+/// sizes). Only the header fields BIDS validation reads are set. Shared
+/// by the crafted-image fixtures (dwi/fmap/nifti checks).
+pub fn nifti(dim: [i16; 8], pixdim: [f32; 8]) -> Vec<u8> {
+    let mut h = vec![0u8; 360];
+    h[0..4].copy_from_slice(&348i32.to_le_bytes());
+    for (i, d) in dim.iter().enumerate() {
+        h[40 + i * 2..42 + i * 2].copy_from_slice(&d.to_le_bytes());
+    }
+    h[70..72].copy_from_slice(&2i16.to_le_bytes()); // datatype = uint8
+    h[72..74].copy_from_slice(&8i16.to_le_bytes()); // bitpix
+    for (i, p) in pixdim.iter().enumerate() {
+        h[76 + i * 4..80 + i * 4].copy_from_slice(&p.to_le_bytes());
+    }
+    h[108..112].copy_from_slice(&352.0f32.to_le_bytes()); // vox_offset
+    h[112..116].copy_from_slice(&1.0f32.to_le_bytes()); // scl_slope
+    h[123] = 10; // xyzt_units: mm + sec
+    h[252..254].copy_from_slice(&1i16.to_le_bytes()); // qform_code
+    h[254..256].copy_from_slice(&1i16.to_le_bytes()); // sform_code
+    h[344..348].copy_from_slice(b"n+1\0");
+    h
+}
+
 /// Build a parity-mode `DatasetContext` from `(bids_path, bytes)` pairs.
 /// Returns the `TempDir` guard too — keep it alive for the context's
 /// lifetime (its `Drop` removes the files on disk).
+///
+/// NOTE: this is a narrow fixture builder, not a full discovery clone.
+/// `dataset_modalities` and `dataset_subjects` are left EMPTY (the real
+/// CLI walker populates them in `src/discover.rs`). Tests that exercise
+/// rules depending on `dataset.modalities` or subject summaries must set
+/// those fields explicitly rather than relying on this helper.
 pub fn build_ctx(files: &[(&str, &[u8])]) -> (TempDir, DatasetContext) {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().to_path_buf();

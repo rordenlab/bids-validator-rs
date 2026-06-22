@@ -16,35 +16,18 @@
 mod common;
 
 use bids_core::run::validate_dataset;
-use common::{build_ctx, issue_locations};
+use common::{build_ctx, issue_locations, nifti};
 
 const DD: &[u8] = br#"{"Name": "fmap", "BIDSVersion": "1.10.0"}"#;
 
-/// Minimal uncompressed NIfTI-1. `ndim` selects 3D (`dim[0]=3`) or 4D
-/// (`dim[0]=4`, `dim[4]=nvol`).
+/// 3D (`dim[0]=3`) or 4D (`dim[0]=4`, `dim[4]=nvol`) NIfTI header.
 fn nii(ndim: i16, nvol: i16) -> Vec<u8> {
-    let mut h = vec![0u8; 360];
-    h[0..4].copy_from_slice(&348i32.to_le_bytes());
-    let dims: [i16; 8] = if ndim == 4 {
+    let dim = if ndim == 4 {
         [4, 2, 2, 2, nvol, 1, 1, 1]
     } else {
         [3, 2, 2, 2, 1, 1, 1, 1]
     };
-    for (i, d) in dims.iter().enumerate() {
-        h[40 + i * 2..42 + i * 2].copy_from_slice(&d.to_le_bytes());
-    }
-    h[70..72].copy_from_slice(&2i16.to_le_bytes());
-    h[72..74].copy_from_slice(&8i16.to_le_bytes());
-    for i in 0..8 {
-        h[76 + i * 4..80 + i * 4].copy_from_slice(&1.0f32.to_le_bytes());
-    }
-    h[108..112].copy_from_slice(&352.0f32.to_le_bytes());
-    h[112..116].copy_from_slice(&1.0f32.to_le_bytes());
-    h[123] = 10;
-    h[252..254].copy_from_slice(&1i16.to_le_bytes());
-    h[254..256].copy_from_slice(&1i16.to_le_bytes());
-    h[344..348].copy_from_slice(b"n+1\0");
-    h
+    nifti(dim, [1.0; 8])
 }
 
 #[test]

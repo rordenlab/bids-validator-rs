@@ -34,6 +34,10 @@ DENO_BIN = Path(os.environ.get("DENO_BIN", "/Users/chris/.deno/bin/deno"))
 DENO_ENTRY = Path(os.environ.get("BIDS_VALIDATOR_DENO_ENTRY", UPSTREAM_ROOT / "src/bids-validator.ts"))
 CACHE_DIR = Path(__file__).resolve().parent / "cache"
 
+# Default sweep: the vendor fixtures plus the gitignored bids-examples
+# datasets fetched by scripts/fetch_bench_data.py. These are expected to
+# be GREEN, so a no-argument run is a clean pass/fail signal. Datasets
+# absent on a given machine are skipped (not failed).
 DATASETS = {
     "valid_headers": UPSTREAM_ROOT / "tests/data/valid_headers",
     "no_t1w": UPSTREAM_ROOT / "tests/data/no_t1w",
@@ -41,9 +45,6 @@ DATASETS = {
     "latin-1_description": UPSTREAM_ROOT / "tests/data/latin-1_description",
     "symlinked_subject": UPSTREAM_ROOT / "tests/data/symlinked_subject",
     "broken_pet_example_2-pet_mri": UPSTREAM_ROOT / "tests/data/broken_pet_example_2-pet_mri",
-    "ds002606": Path("/Users/chris/src/bidsui/datasets/ds002606"),
-    "ds000003": Path("/Users/chris/src/bidsui/datasets/ds000003"),
-    "ds005016": Path("/Users/chris/src/bidsui/datasets/ds005016"),
     # Electrophysiology corpus (coordsystem.json -> association/"viewed"
     # walk). Fetched into gitignored data/ by
     # `scripts/fetch_bench_data.py <name>`; skipped here when absent.
@@ -58,6 +59,16 @@ DATASETS = {
     "eeg_rest_fmri": ROOT / "data/eeg_rest_fmri",  # EEG + events
     "asl001": ROOT / "data/asl001",  # ASL (aslcontext, perf sidecar)
     "pet003": ROOT / "data/pet003",  # PET (frame timing sidecar)
+}
+
+# Opt-in datasets: machine-specific absolute paths AND/OR known-red
+# datasets with documented pre-existing divergences (see audit_response.md).
+# Excluded from the default sweep so it stays a clean signal; run them
+# explicitly, e.g. `python3 tests/parity/run.py ds005016`.
+OPT_IN_DATASETS = {
+    "ds002606": Path("/Users/chris/src/bidsui/datasets/ds002606"),
+    "ds000003": Path("/Users/chris/src/bidsui/datasets/ds000003"),
+    "ds005016": Path("/Users/chris/src/bidsui/datasets/ds005016"),
 }
 
 # Multiset parity is judged against these codes (the Rust validator emits
@@ -177,12 +188,11 @@ NON_CONTRACT_RUST_CODES = {
 # Rust-only and Deno-only counts for these (code, dataset) pairs. Keep
 # this list short — every entry is a documented hole in the parity
 # contract. See `audit_response.md` for the rationale per entry.
-KNOWN_DIVERGENCE_ISSUES: set[tuple[str, str, str | None]] = {
-    # Keep empty unless a divergence is tied to one specific subCode and
-    # documented in README/audit notes. Do not add
-    # SIDECAR_KEY_RECOMMENDED / AcquisitionDuration here: Rust should
-    # suppress detailed deprecated fields like Deno 2.4.1.
-}
+# Keep empty unless a divergence is tied to one specific subCode and
+# documented in README/audit notes. Do not add
+# SIDECAR_KEY_RECOMMENDED / AcquisitionDuration here: Rust should
+# suppress detailed deprecated fields like Deno 2.4.1.
+KNOWN_DIVERGENCE_ISSUES: set[tuple[str, str, str | None]] = set()
 
 KNOWN_DIVERGENCES: set[tuple[str, str]] = {
     # ds000003: 35 of 47 .nii.gz files are broken git-annex symlinks
@@ -340,13 +350,15 @@ def main():
         else:
             names.append(arg)
             i += 1
+    # Default = the green set; opt-in datasets only run when named explicitly.
+    all_datasets = {**DATASETS, **OPT_IN_DATASETS}
     names = names or list(DATASETS.keys())
     overall_ok = True
     for name in names:
-        if name not in DATASETS:
+        if name not in all_datasets:
             print(f"unknown dataset {name}")
             sys.exit(2)
-        path = DATASETS[name]
+        path = all_datasets[name]
         if not path.is_dir():
             print(f"  skip {name} (missing path)")
             continue

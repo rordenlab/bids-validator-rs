@@ -68,6 +68,18 @@ Minimal correct form. The consumer already does a linear `viewed.contains` over 
 
 The `SchemaPatch` table is generic machinery for one entry; it could collapse to two free functions. Kept because the self-tests (`*_patch_still_needed`, `*_patched_at_runtime`, the governance guard) are the real value and read cleanly against the table. `upstream_ref` is a search hint until an upstream issue is filed.
 
+## Round 3 (crafted-fixture PR #3 audit)
+
+A later review of the crafted-fixture work (DWI/fmap/NIfTI families). Resolutions:
+
+- **`.tsv.gz` missed the BOM fix — Fixed.** The earlier BOM strip was only in `parse_tsv`; `parse_tsv_body_with_headers` (the `.tsv.gz` path) now strips it too, with a regression test.
+- **Default parity sweep ambiguous — Fixed.** Machine-specific / known-red datasets (`ds000003`, `ds002606`, `ds005016`) moved to an opt-in `OPT_IN_DATASETS` dict in `run.py`. The no-argument sweep now runs only the expected-green set (vendor + fetched bids-examples) and is a clean pass/fail signal; opt-in datasets run when named explicitly.
+- **`ISSUE_COVERAGE.md` count drift — Fixed.** `SUBJECT_FOLDERS` was in `RUST_CODES` but listed as missing; moved to implemented, counts corrected (now 69 implemented / 109 missing; status table sums to 202).
+- **Evidence levels conflated — Fixed (documented).** `ISSUE_COVERAGE.md` now distinguishes *dataset parity* (continuously Deno-checked) from *crafted-fixture* codes (CI-gated Rust assertions; Deno parity confirmed once during development).
+- **Crafted NIfTI builder triplicated — Fixed.** Moved the minimal NIfTI header builder into `tests/common/mod.rs`; the three check files share it.
+- **Fixture builder doesn't populate modalities/subjects — Documented.** Added a note on `build_ctx` that it's a narrow fixture builder (empty `dataset_modalities`/`dataset_subjects`); tests depending on those must set them explicitly.
+- **Clean-checkout coverage / TSV buffering / cache lock / association alloc — Discuss / Won't fix.** Pre-existing and by-design (parity sweep + oracle are local dev tools, CI runs `cargo test`); tracked in `CLAUDE.md`. The crafted-fixture integration tests are the durable, CI-gated guard.
+
 ## Verdict
 
-Committable. `cargo fmt`, `clippy -D warnings`, and `cargo test --workspace` are green. The parity sweep is green on all 8 datasets present on this checkout (6 vendor + 2 new electrophysiology); `ds005016` is pre-existing red and unrelated; `ds000003`/`ds002606` skip when their machine-specific paths are absent.
+Committable. `cargo fmt`, `clippy -D warnings`, and `cargo test --workspace` are green. The **default** parity sweep is green on all 14 present datasets (vendor + fetched bids-examples); `ds005016` (opt-in) carries documented pre-existing divergences; `ds000003`/`ds002606` (opt-in) skip when their machine-specific paths are absent.

@@ -13,31 +13,9 @@
 mod common;
 
 use bids_core::run::validate_dataset;
-use common::{build_ctx, issue_locations};
+use common::{build_ctx, issue_locations, nifti as nii};
 
 const DD: &[u8] = br#"{"Name": "nii", "BIDSVersion": "1.10.0"}"#;
-
-/// Uncompressed NIfTI-1 with caller-chosen `dim` and `pixdim` arrays
-/// (8 entries each: `[0]` is ndims / qfac, `[1..]` are extents / sizes).
-fn nii(dim: [i16; 8], pixdim: [f32; 8]) -> Vec<u8> {
-    let mut h = vec![0u8; 360];
-    h[0..4].copy_from_slice(&348i32.to_le_bytes());
-    for (i, d) in dim.iter().enumerate() {
-        h[40 + i * 2..42 + i * 2].copy_from_slice(&d.to_le_bytes());
-    }
-    h[70..72].copy_from_slice(&2i16.to_le_bytes());
-    h[72..74].copy_from_slice(&8i16.to_le_bytes());
-    for (i, p) in pixdim.iter().enumerate() {
-        h[76 + i * 4..80 + i * 4].copy_from_slice(&p.to_le_bytes());
-    }
-    h[108..112].copy_from_slice(&352.0f32.to_le_bytes());
-    h[112..116].copy_from_slice(&1.0f32.to_le_bytes());
-    h[123] = 10;
-    h[252..254].copy_from_slice(&1i16.to_le_bytes());
-    h[254..256].copy_from_slice(&1i16.to_le_bytes());
-    h[344..348].copy_from_slice(b"n+1\0");
-    h
-}
 
 const PIX_OK: [f32; 8] = [1.0; 8];
 
