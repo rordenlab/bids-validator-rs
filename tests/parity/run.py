@@ -30,7 +30,7 @@ UPSTREAM_ROOT = Path(os.environ.get("BIDS_VALIDATOR_UPSTREAM_ROOT", ROOT / "vend
 RUST_BIN = Path(os.environ.get("BIDS_VALIDATOR_RS_BIN", ROOT / "target/release/bids-validator"))
 RUST_CONTENT_MODE = "parity"
 RUST_LINK_MODE = "parity"
-DENO_BIN = Path(os.environ.get("DENO_BIN", "/Users/chris/.deno/bin/deno"))
+DENO_BIN = Path(os.environ.get("DENO_BIN", "deno"))  # override via DENO_BIN env
 DENO_ENTRY = Path(os.environ.get("BIDS_VALIDATOR_DENO_ENTRY", UPSTREAM_ROOT / "src/bids-validator.ts"))
 CACHE_DIR = Path(__file__).resolve().parent / "cache"
 
@@ -62,7 +62,7 @@ DATASETS = {
 }
 
 # Opt-in datasets: machine-specific absolute paths AND/OR known-red
-# datasets with documented pre-existing divergences (see audit_response.md).
+# datasets with documented pre-existing divergences (see KNOWN_DIVERGENCES).
 # Excluded from the default sweep so it stays a clean signal; run them
 # explicitly, e.g. `python3 tests/parity/run.py ds005016`.
 OPT_IN_DATASETS = {
@@ -186,6 +186,26 @@ RUST_CODES = {
     "DEPRECATED_ACQUISITION_DURATION",
     "BACKGROUND_SUPPRESSION_PULSE_NUMBER_NOT_CONSISTENT",
     "TOTAL_ACQUIRED_VOLUMES_NOT_CONSISTENT",
+    # PET frame-timing family (crafted-fixture verified vs Deno 2.4.1;
+    # see crates/bids-core/tests/pet_checks.rs).
+    "PET_FRAME_CONSISTENCY",
+    "PET_FRAME_CONSISTENCY_FRAME_DURATION",
+    "PET_FRAME_CONSISTENCY_FRAME_TIMES_START",
+    "NIFTI_PIXDIM_PET",
+    # bold/mri timing family (crafted-fixture verified vs Deno 2.4.1; see
+    # crates/bids-core/tests/timing_checks.rs).
+    "REPETITION_TIME_GREATER_THAN",
+    "REPETITION_TIME_MISMATCH",
+    "SLICETIMING_VALUES_GREATER_THAN_REPETITION_TIME",
+    "SLICETIMING_ELEMENTS",
+    "ECHO_TIME_GREATER_THAN",
+    "EFFECTIVEECHOSPACING_TOO_LARGE",
+    "EFFECTIVEECHOSPACING_LARGER_THAN_TOTALREADOUTTIME",
+    # MRS (crafted-fixture verified vs Deno 2.4.1; see
+    # crates/bids-core/tests/mrs_checks.rs). Only MRS_MATRIX_SIZE is
+    # reachable — MRS_NIFTI_CONSISTENCY needs the NIfTI-MRS header
+    # extension (nifti_header.mrs), not yet parsed by Rust.
+    "MRS_MATRIX_SIZE",
     # rules.errors emissions (Phase 1 scope expansion)
     "SIDECAR_WITHOUT_DATAFILE",
     # Electrophysiology channel-count checks (exercised by eeg_face13).
@@ -214,7 +234,7 @@ NON_CONTRACT_RUST_CODES = {
 # Each entry is `(dataset_name, code)`; the parity sweep ignores both
 # Rust-only and Deno-only counts for these (code, dataset) pairs. Keep
 # this list short — every entry is a documented hole in the parity
-# contract. See `audit_response.md` for the rationale per entry.
+# contract. Each entry's rationale is in its inline comment below.
 # Keep empty unless a divergence is tied to one specific subCode and
 # documented in README/audit notes. Do not add
 # SIDECAR_KEY_RECOMMENDED / AcquisitionDuration here: Rust should
@@ -230,7 +250,7 @@ KNOWN_DIVERGENCES: set[tuple[str, str]] = {
     # Rust under-fires `GZIP_HEADER_FILENAME` / `GZIP_HEADER_MTIME`
     # by 39 issues each on this dataset. Fixing requires teaching the
     # Rust loader to traverse the git-annex object store, which is
-    # plan.md Phase 2 territory. Tracked in audit_response.md.
+    # plan.md Phase 2 territory.
     ("ds000003", "GZIP_HEADER_FILENAME"),
     ("ds000003", "GZIP_HEADER_MTIME"),
     # ds002606 has /prefs.json (a non-standalone JSON file that's
@@ -244,8 +264,7 @@ KNOWN_DIVERGENCES: set[tuple[str, str]] = {
     # never fires on any .json with a well-formed suffix. We chose to
     # diverge: the Rust implementation skips self in the viewed-set
     # accumulator (only ANCESTOR sidecars count as inheriting), so
-    # genuine orphans actually fire. See `audit_response.md` for the
-    # decision rationale. Tracked as a Rust-only signal, not a parity
+    # genuine orphans actually fire. Tracked as a Rust-only signal, not a parity
     # bug.
     ("ds002606", "SIDECAR_WITHOUT_DATAFILE"),
 }
@@ -415,7 +434,7 @@ def main():
 
         # Strip known-divergent (code, dataset) pairs from both sides
         # before the comparison so the sweep stays green while real
-        # parity gaps are visible in audit_response.md.
+        # parity gaps stay visible (logged via KNOWN_DIVERGENCES).
         rust_ms = strip_known_divergences(name, rust_ms)
         deno_ms = strip_known_divergences(name, deno_ms)
         rust_only = rust_ms - deno_ms

@@ -30,3 +30,5 @@ tests/oracle/cases/
 selectors_dump.txt
 __pycache__/
 .DS_Store
+# Audit workflow scratch (incoming review + our response) — local only
+audit_*.md
