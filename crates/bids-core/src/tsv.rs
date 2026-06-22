@@ -88,6 +88,12 @@ pub fn load_tsv(path: &Path, policy: &ContentPolicy) -> (TsvColumns, Option<Issu
 
 /// Parse TSV content. Public so tests can drive it without the filesystem.
 pub fn parse_tsv(text: &str) -> (TsvColumns, Option<Issue>) {
+    // Deno decodes files through `TextDecoder`, which strips a single
+    // leading UTF-8 BOM. Rust's `read_to_string` keeps it, so without
+    // this the first header reads as "\u{feff}<name>" — the column the
+    // schema expects (e.g. `participant_id`, `onset`, `filename`) shows
+    // up as both MISSING and an undefined extra column. Strip it here.
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     // Mirrors Deno's `TextLineStream`: split on `\n`, then drop a trailing
     // `\r` per line. Trailing empty lines (text ending with `\n` or
     // `\r\n\r\n`) are *not* errors — TextLineStream's `peek next` in
@@ -294,6 +300,18 @@ mod tests {
         assert_eq!(cols.headers, vec!["a", "b"]);
         assert_eq!(cols.columns["a"], vec!["1", "3"]);
         assert_eq!(cols.columns["b"], vec!["2", "4"]);
+    }
+
+    #[test]
+    fn strips_leading_utf8_bom_from_first_header() {
+        // A leading UTF-8 BOM must not become part of the first header
+        // (Deno's TextDecoder strips it). Otherwise the expected column
+        // reads as "\u{feff}participant_id" and is reported both missing
+        // and as an undefined extra column.
+        let (cols, err) = parse_tsv("\u{feff}participant_id\tage\nsub-01\t42\n");
+        assert!(err.is_none(), "got {err:?}");
+        assert_eq!(cols.headers, vec!["participant_id", "age"]);
+        assert_eq!(cols.columns["participant_id"], vec!["sub-01"]);
     }
 
     #[test]

@@ -53,6 +53,9 @@ DATASETS = {
     "eeg_face13": ROOT / "data/eeg_face13",
     "ieeg_epilepsy": ROOT / "data/ieeg_epilepsy",
     "ds114": ROOT / "data/ds114",  # DWI (bval/bvec inheritance)
+    "emg_Multimodal": ROOT / "data/emg_Multimodal",  # EMG channels/coordsystem
+    "fnirs_tapping": ROOT / "data/fnirs_tapping",  # NIRS channels
+    "eeg_rest_fmri": ROOT / "data/eeg_rest_fmri",  # EEG + events
 }
 
 # Multiset parity is judged against these codes (the Rust validator emits
