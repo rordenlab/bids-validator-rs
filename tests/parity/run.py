@@ -126,6 +126,14 @@ RUST_CODES = {
     "TSV_PSEUDO_AGE_DEPRECATED",
     # Associations
     "BVEC_ROW_LENGTH",
+    # DWI rules.checks family (crafted-fixture verified vs Deno 2.4.1; see
+    # crates/bids-core/tests/dwi_checks.rs). Need a valid 4D NIfTI header
+    # and/or bval/bvec, which the empty-placeholder example datasets lack.
+    "VOLUME_COUNT_MISMATCH",
+    "BVAL_MULTIPLE_ROWS",
+    "BVEC_NUMBER_ROWS",
+    "DWI_MISSING_BVAL",
+    "DWI_MISSING_BVEC",
     # rules.errors emissions (Phase 1 scope expansion)
     "SIDECAR_WITHOUT_DATAFILE",
     # Electrophysiology channel-count checks (exercised by eeg_face13).
