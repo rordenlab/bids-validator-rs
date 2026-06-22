@@ -192,6 +192,15 @@ RUST_CODES = {
     "PET_FRAME_CONSISTENCY_FRAME_DURATION",
     "PET_FRAME_CONSISTENCY_FRAME_TIMES_START",
     "NIFTI_PIXDIM_PET",
+    # bold/mri timing family (crafted-fixture verified vs Deno 2.4.1; see
+    # crates/bids-core/tests/timing_checks.rs).
+    "REPETITION_TIME_GREATER_THAN",
+    "REPETITION_TIME_MISMATCH",
+    "SLICETIMING_VALUES_GREATER_THAN_REPETITION_TIME",
+    "SLICETIMING_ELEMENTS",
+    "ECHO_TIME_GREATER_THAN",
+    "EFFECTIVEECHOSPACING_TOO_LARGE",
+    "EFFECTIVEECHOSPACING_LARGER_THAN_TOTALREADOUTTIME",
     # rules.errors emissions (Phase 1 scope expansion)
     "SIDECAR_WITHOUT_DATAFILE",
     # Electrophysiology channel-count checks (exercised by eeg_face13).
