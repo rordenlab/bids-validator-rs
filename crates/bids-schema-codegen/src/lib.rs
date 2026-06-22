@@ -23,6 +23,8 @@ use std::sync::OnceLock;
 use indexmap::IndexMap;
 use serde::Deserialize;
 
+mod patches;
+
 /// Embedded schema text. Pinned by `rust/schemas/schema-<version>.json`
 /// symlink. Used only for the *runtime-parse* fallback path; the
 /// build-time codegen reads the same file in `build.rs`.
@@ -312,17 +314,29 @@ impl EntityRequirement {
     }
 }
 
-/// Global typed schema accessor. The embedded JSON is parsed once, in a
-/// single `serde_json::from_str` pass directly into `Schema`. Subtree
-/// "raw" views needed by downstream crates (metadata-field bodies,
-/// enums) are captured *inside* the typed struct via `#[serde(flatten)]`
-/// / `serde_json::Value` fields — so there is exactly **one** parse of
-/// the 1.6 MB schema at startup, not three.
+/// Global typed schema accessor. The embedded JSON is parsed to a
+/// `serde_json::Value`, the local patch layer ([`patches`]) is applied,
+/// then the result is deserialized into `Schema` — once, behind a
+/// `OnceLock`. Subtree "raw" views needed by downstream crates
+/// (metadata-field bodies, enums) are captured *inside* the typed struct
+/// via `#[serde(flatten)]` / `serde_json::Value` fields. The extra
+/// `Value` materialization is the price of keeping the on-disk JSON
+/// byte-verbatim (see [`patches`]); it runs once at startup.
 pub fn schema() -> &'static Schema {
     static CELL: OnceLock<Schema> = OnceLock::new();
     CELL.get_or_init(|| {
-        serde_json::from_str::<Schema>(BUNDLED_SCHEMA_JSON)
-            .expect("embedded schema.json failed to parse")
+        // Parse the raw schema into `serde_json::Value` first, run
+        // local patches (see `patches.rs` for the audit trail and
+        // upstream-fix detectors), then deserialize into the typed
+        // `Schema`. The raw bytes returned by `BUNDLED_SCHEMA_JSON`
+        // and `bundled_schema_value()` remain unmodified — patches
+        // only affect the typed `schema()` view that the validator
+        // engine reads from.
+        let mut value: serde_json::Value = serde_json::from_str(BUNDLED_SCHEMA_JSON)
+            .expect("embedded schema.json failed to parse");
+        patches::apply_all(&mut value);
+        serde_json::from_value::<Schema>(value)
+            .expect("embedded schema failed to deserialize after patching")
     })
 }
 

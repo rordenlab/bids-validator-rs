@@ -4,9 +4,7 @@ Status date: 2026-05-17.
 
 Reference: `src/setup/options.ts`.
 
-The Rust beta remains JSON-first. Flags below are either implemented or
-parsed and rejected explicitly so users do not get silent Deno/Rust
-behavior drift.
+The Rust beta remains JSON-first. Flags below are either implemented or parsed and rejected explicitly so users do not get silent Deno/Rust behavior drift.
 
 | Deno flag | Rust status | Notes |
 | --- | --- | --- |

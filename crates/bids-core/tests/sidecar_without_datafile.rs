@@ -2,15 +2,19 @@
 //!
 //! Mirrors Deno `src/validators/internal/unusedFile.ts::sidecarWithoutDatafile`.
 //! A `.json` sidecar that isn't picked up by any data file's inheritance
-//! walk gets flagged, with three documented exemptions:
+//! OR association walk (Deno's single `file.viewed` mechanism) gets
+//! flagged. Exemptions:
 //!
 //! * `/dataset_description.json` (schema-level standalone)
 //! * `/genetic_info.json` (schema-level standalone)
-//! * `suffix == "coordsystem"` AND `modality == "emg"` (per
-//!   `rules.errors.SidecarWithoutDatafile.selectors`)
 //!
-//! These cases are not exercised by any of the 9 parity datasets, so
-//! the only correctness signal here comes from this test.
+//! Note: `coordsystem.json` has NO per-modality carve-out. It is exempt
+//! only when an electrophysiology recording in its directory views it
+//! via the association walk — orphaned coordsystem files are flagged for
+//! every modality, including EMG (verified against @bids/validator 2.4.1).
+//!
+//! These cases are not exercised by any of the parity datasets, so the
+//! only correctness signal here comes from this test.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -271,39 +275,53 @@ fn exempts_dataset_description_and_genetic_info() {
 }
 
 #[test]
-fn exempts_emg_coordsystem_json() {
-    // EMG-specific quirk encoded in the schema's
-    // rules.errors.SidecarWithoutDatafile selector
-    // `suffix != "coordsystem" || modality != "emg"`.
+fn flags_orphan_coordsystem_regardless_of_modality() {
+    // An ORPHANED coordsystem.json (no recording in its directory) is
+    // flagged for EVERY modality, including EMG. The previous
+    // `modality == "emg"` carve-out diverged from Deno — verified by
+    // running @bids/validator 2.4.1 on this exact tree, which emits
+    // SIDECAR_WITHOUT_DATAFILE for the orphaned EMG coordsystem. Deno's
+    // real rule is the `file.viewed` walk, not a per-modality selector.
     let (_tmp, ctx) = build_ctx(&[
         (
             "/dataset_description.json",
             br#"{"Name": "x", "BIDSVersion": "1.10.0"}"#,
         ),
         ("/sub-01/emg/sub-01_coordsystem.json", br#"{}"#),
+        ("/sub-02/meg/sub-02_coordsystem.json", br#"{}"#),
     ]);
     let result = validate_dataset(&ctx);
     let orphans = issue_locations(&result.issues.issues, "SIDECAR_WITHOUT_DATAFILE");
-    assert!(
-        orphans.is_empty(),
-        "EMG coordsystem must not be flagged: {orphans:?}"
+    assert_eq!(
+        orphans,
+        vec![
+            "/sub-01/emg/sub-01_coordsystem.json",
+            "/sub-02/meg/sub-02_coordsystem.json"
+        ]
     );
 }
 
 #[test]
-fn flags_non_emg_coordsystem_when_unused() {
-    // A non-EMG coordsystem.json is NOT exempted — should fire if no
-    // data file picks it up via inheritance.
+fn does_not_flag_coordsystem_with_a_recording() {
+    // The general fix: a coordsystem.json IS exempt when an
+    // electrophysiology recording is present in its directory, because
+    // the recording's ASSOCIATION walk views it — exactly Deno's
+    // `walkBack`-sets-`viewed` mechanism. No per-modality carve-out;
+    // this covers meg/eeg/ieeg/emg/nirs/motion + any future association.
     let (_tmp, ctx) = build_ctx(&[
         (
             "/dataset_description.json",
             br#"{"Name": "x", "BIDSVersion": "1.10.0"}"#,
         ),
+        ("/sub-01/meg/sub-01_task-rest_meg.fif", b"not-empty"),
         ("/sub-01/meg/sub-01_coordsystem.json", br#"{}"#),
     ]);
     let result = validate_dataset(&ctx);
     let orphans = issue_locations(&result.issues.issues, "SIDECAR_WITHOUT_DATAFILE");
-    assert_eq!(orphans, vec!["/sub-01/meg/sub-01_coordsystem.json"]);
+    assert!(
+        orphans.is_empty(),
+        "coordsystem with a recording must not be flagged: {orphans:?}"
+    );
 }
 
 #[test]

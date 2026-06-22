@@ -5,19 +5,30 @@
 //! schema. These replace runtime `serde_json::from_str` work that
 //! adds ~80–120 ms to startup on `valid_headers`-sized datasets.
 //!
-//! Scope this revision:
-//!   * `objects.formats` — name + regex pattern + display name. ~18
-//!     entries; pure data; cheap to serialize as a `&'static [...]`.
+//! Emitted tables (see `write_formats`/`write_entities`/`write_modalities`):
+//!   * `objects.formats` — name + regex pattern + display name.
+//!   * `objects.entities` — entity name/key metadata.
+//!   * `rules.modalities` — modality → datatype membership.
 //!
-//! Generated artifact: `$OUT_DIR/generated_formats.rs`, included by
-//! `src/lib.rs` via `include!`. The runtime `schema().objects.formats`
-//! API is preserved (still IndexMap-shaped for serde) — we just have
-//! a *separate*, faster path for the formats table that the
-//! anchored-regex cache and selector evaluator can use.
+//! Each is pure, append-mostly data, cheap to serialize as a
+//! `&'static [...]`.
 //!
-//! Adding more tables (entities, columns, …) is the same shape: read
-//! the JSON subtree, emit a `&'static [...]` slice, expose a `pub
-//! fn formats_static() -> &'static [...]`.
+//! Generated artifacts: `$OUT_DIR/generated_{formats,entities,modalities}.rs`,
+//! included by `src/lib.rs` via `include!`. The runtime
+//! `schema().objects.*` API is preserved (still IndexMap-shaped for
+//! serde) — these are *separate*, faster paths the anchored-regex cache
+//! and selector evaluator can use.
+//!
+//! NOTE: these tables are emitted from the *raw* on-disk schema, before
+//! the runtime patch layer in `src/patches.rs` runs. A schema patch that
+//! mutates `objects.formats`, `objects.entities`, or `rules.modalities`
+//! would NOT reach these static tables — such a patch must be applied
+//! here in `build.rs` too. Today's only patch touches `rules.sidecars`,
+//! which is not emitted statically, so the raw/patched split is safe.
+//!
+//! Adding more tables (columns, …) is the same shape: read the JSON
+//! subtree, emit a `&'static [...]` slice, expose a `pub fn
+//! *_static() -> &'static [...]`.
 
 use std::env;
 use std::fs;

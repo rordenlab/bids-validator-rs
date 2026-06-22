@@ -28,7 +28,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BIDS_EXAMPLES_REF = "master"
 BIDS_EXAMPLES_URL = "https://github.com/bids-standard/bids-examples/archive/{ref}.tar.gz"
-BIDS_EXAMPLES_DATASETS = {"pet002"}
+# pet002 is the image benchmark; the electrophysiology datasets each carry
+# a coordsystem.json and exercise the sidecar-association ("viewed") walk
+# that the parity suite otherwise never touches (no MEG/EEG/iEEG corpus).
+BIDS_EXAMPLES_DATASETS = {
+    "pet002",
+    "eeg_face13",
+    "ieeg_epilepsy",
+}
+# Datasets whose NIfTI placeholders get rewritten to tiny valid headers
+# (and fetched to data/<name>-tiny). Only image datasets need this.
+BIDS_EXAMPLES_TINY = {"pet002"}
 
 
 def main() -> int:
@@ -59,13 +69,18 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.dataset in BIDS_EXAMPLES_DATASETS:
-        dest_name = args.dataset if args.no_tiny_nifti else f"{args.dataset}-tiny"
+        # The tiny-NIfTI rewrite (and its `-tiny` dest suffix) only applies
+        # to image datasets with NIfTI placeholders. The electrophysiology
+        # parity datasets have none, so they fetch verbatim to data/<name>
+        # — the path tests/parity/run.py expects.
+        tiny_nifti = (args.dataset in BIDS_EXAMPLES_TINY) and not args.no_tiny_nifti
+        dest_name = f"{args.dataset}-tiny" if tiny_nifti else args.dataset
         dest = args.dest or ROOT / "data" / dest_name
         fetch_bids_examples_dataset(
             args.dataset,
             dest,
             args.bids_examples_ref,
-            tiny_nifti=not args.no_tiny_nifti,
+            tiny_nifti=tiny_nifti,
             force=args.force,
         )
         return 0
