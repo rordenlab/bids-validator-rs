@@ -40,6 +40,18 @@ fn compiled_rules() -> &'static [CompiledAssociationRule] {
     })
 }
 
+/// Returns `(associations, issues, viewed)`. `viewed` is the fs-path of
+/// every file resolved as an association target — these must be marked
+/// "viewed" by the caller so the SIDECAR_WITHOUT_DATAFILE pass doesn't
+/// flag them as orphans. This matches Deno's association side-effect:
+/// association resolution there runs through `walkBack`, which sets
+/// `file.viewed = true` on the matched candidate(s). (It does NOT claim
+/// parity with all of Deno's orphan-sidecar behavior — see the
+/// SIDECAR_WITHOUT_DATAFILE self-view divergence noted in
+/// `tests/parity/run.py`.) Marking association targets viewed here
+/// (rather than special-casing `coordsystem`) is the general rule: any
+/// current or future schema association is handled automatically, with
+/// no hardcoded modality list.
 pub fn build_associations(
     ctx_value: &Value,
     arena: &[DiscoveredFile],
@@ -47,9 +59,10 @@ pub fn build_associations(
     index: &DirIndex,
     cache: &crate::content::ContentCache,
     dataset_files: &HashSet<String>,
-) -> (J, Vec<Issue>) {
+) -> (J, Vec<Issue>, Vec<std::path::PathBuf>) {
     let mut out = serde_json::Map::new();
     let mut issues = Vec::new();
+    let mut viewed: Vec<std::path::PathBuf> = Vec::new();
     let ec = EvalContext::with_files(ctx_value, dataset_files);
 
     for rule in compiled_rules() {
@@ -84,6 +97,9 @@ pub fn build_associations(
         }
 
         let value = if rule.rule.target.entities.is_empty() {
+            // Single-target association: Deno's `walkBack` returns one
+            // match and marks it viewed. Mirror by viewing candidates[0].
+            viewed.push(arena[candidates[0]].fs_path.clone());
             load_one(
                 &rule.key,
                 &arena[candidates[0]],
@@ -93,6 +109,11 @@ pub fn build_associations(
                 cache,
             )
         } else {
+            // Multi-target association (e.g. coordsystem across spaces):
+            // walkBack returns every match and marks them all viewed.
+            for &i in &candidates {
+                viewed.push(arena[i].fs_path.clone());
+            }
             let resolved: Vec<&DiscoveredFile> = candidates.iter().map(|&i| &arena[i]).collect();
             load_many(&rule.key, &resolved, cache)
         };
@@ -101,7 +122,7 @@ pub fn build_associations(
         }
     }
 
-    (J::Object(out), issues)
+    (J::Object(out), issues, viewed)
 }
 
 fn association_candidates(

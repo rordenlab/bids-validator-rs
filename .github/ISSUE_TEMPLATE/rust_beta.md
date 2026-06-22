@@ -45,5 +45,4 @@ assignees: ""
 
 ## Notes
 
-Add the smallest useful excerpt of JSON output. Do not include private
-participant data.
+Add the smallest useful excerpt of JSON output. Do not include private participant data.

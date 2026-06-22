@@ -44,6 +44,14 @@ DATASETS = {
     "ds002606": Path("/Users/chris/src/bidsui/datasets/ds002606"),
     "ds000003": Path("/Users/chris/src/bidsui/datasets/ds000003"),
     "ds005016": Path("/Users/chris/src/bidsui/datasets/ds005016"),
+    # Electrophysiology corpus (coordsystem.json -> association/"viewed"
+    # walk). Fetched into gitignored data/ by
+    # `scripts/fetch_bench_data.py <name>`; skipped here when absent.
+    # (CTF-MEG datasets like ds000246 are excluded: Deno
+    # treats the `.ds/` recording as one unit, Rust walks its internal
+    # files — a separate unimplemented divergence, not in scope here.)
+    "eeg_face13": ROOT / "data/eeg_face13",
+    "ieeg_epilepsy": ROOT / "data/ieeg_epilepsy",
 }
 
 # Multiset parity is judged against these codes (the Rust validator emits
@@ -114,6 +122,11 @@ RUST_CODES = {
     "BVEC_ROW_LENGTH",
     # rules.errors emissions (Phase 1 scope expansion)
     "SIDECAR_WITHOUT_DATAFILE",
+    # Electrophysiology channel-count checks (exercised by eeg_face13).
+    # Deno emits these too; only EEG/iEEG/MEG datasets trigger them, so
+    # adding them does not invalidate the MRI/PET dataset caches.
+    "EOG_CHANNEL_COUNT_MISMATCH",
+    "MISC_CHANNEL_COUNT_MISMATCH",
 }
 
 # Rust can emit a small number of issue codes that are intentionally

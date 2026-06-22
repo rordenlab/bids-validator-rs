@@ -17,7 +17,6 @@ use serde_json::Value as J;
 
 use crate::associations::build_associations;
 use crate::checks::check_rules;
-use crate::filename::parse_filename;
 use crate::gzip::{gzip_to_json, parse_gzip};
 use crate::inheritance::{
     merge_with_origins_and_override_issues, read_sidecars_with_candidates, DirIndex,
@@ -32,7 +31,6 @@ use crate::rules::{validate_file, DatasetType, FileContext};
 use crate::tables::check_tables;
 use crate::tiff::{ome_to_json, parse_tiff, tiff_to_json};
 use crate::tsv::{load_tsv, load_tsvgz, TsvColumns};
-use bids_schema_codegen::modality_of;
 
 /// A file discovered by the dataset walker. Produced by the CLI (or
 /// any other front-end) and handed to [`DatasetContext`] for
@@ -243,12 +241,12 @@ fn emit_missing_dataset_description_issue(ctx: &DatasetContext, issues: &mut Vec
 /// inheritance walk. Mirrors `sidecarWithoutDatafile` in
 /// `src/validators/internal/unusedFile.ts`.
 ///
-/// Exemptions:
-/// * `dataset_description.json` and `genetic_info.json` — schema-level
-///   "standalone" JSONs that exist without a data file by design.
-/// * `suffix == "coordsystem" && modality == "emg"` — matches the
-///   schema selector `suffix != "coordsystem" || modality != "emg"`
-///   on `rules.errors.SidecarWithoutDatafile`.
+/// A `.json` is exempt only when `dataset_description.json` or
+/// `genetic_info.json` (schema-level "standalone" JSONs that exist
+/// without a data file by design), or when some file's inheritance OR
+/// association walk marked it viewed. `coordsystem.json` is covered by
+/// the latter — the association builder marks its resolved targets
+/// viewed — so there is no per-suffix/per-modality carve-out.
 ///
 /// Files under opaque directories (`sourcedata/`, `derivatives/`,
 /// `code/`, `stimuli/`, `log/`) don't show up here because they're
@@ -267,16 +265,12 @@ fn emit_orphan_sidecar_issues(
         if STANDALONE.contains(&file.bids_path.as_str()) {
             continue;
         }
-        let name = file
-            .bids_path
-            .rsplit_once('/')
-            .map(|(_, n)| n)
-            .unwrap_or(&file.bids_path);
-        let parsed = parse_filename(name);
-        // EMG coordsystem exemption — per schema selector.
-        if parsed.suffix == "coordsystem" && modality_of(&file.datatype) == Some("emg") {
-            continue;
-        }
+        // A `.json` is an orphan iff no file's inheritance OR association
+        // walk viewed it. coordsystem.json (and any future schema
+        // association) is handled by the association builder marking its
+        // resolved targets viewed — no per-suffix carve-out needed. This
+        // mirrors Deno's single `file.viewed` mechanism (set by walkBack
+        // for both inheritance and associations).
         if viewed.contains(&file.fs_path) {
             continue;
         }
@@ -529,7 +523,7 @@ fn validate_one_file(
         dataset_files,
     };
     let mut ctx_value = build_eval_context(&assoc_seed);
-    let (associations, assoc_issues) = build_associations(
+    let (associations, assoc_issues, assoc_viewed) = build_associations(
         &ctx_value,
         &ctx.files,
         file,
@@ -538,6 +532,10 @@ fn validate_one_file(
         dataset_files,
     );
     issues.extend(assoc_issues);
+    // Mark association targets (coordsystem, etc.) viewed — mirrors Deno's
+    // walkBack side-effect — so the SIDECAR_WITHOUT_DATAFILE pass treats a
+    // present-and-associated coordsystem.json as used, not orphaned.
+    viewed_sidecars.extend(assoc_viewed);
 
     let sctx = SidecarContext {
         associations: &associations,

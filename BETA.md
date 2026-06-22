@@ -1,18 +1,15 @@
 # Rust Validator Beta
 
-Status date: 2026-05-17.
+Status date: 2026-06-22.
 
-This beta is a native Rust validator for the current parity slice. It is
-intended for technical testers who can compare JSON output against the
-Deno validator and report precise differences.
+This beta is a native Rust validator for the current parity slice. It is intended for technical testers who can compare JSON output against the Deno validator and report precise differences.
 
 It is not a full replacement for the Deno validator yet.
 
 ## Supported Scope
 
 - Standalone CLI binary.
-- JSON output only: compact JSON by default, `--json`,
-  `--format json`, and `--format json_pp`.
+- JSON output only: compact JSON by default, `--json`, `--format json`, and `--format json_pp`.
 - Bundled `@bids/schema` `1.2.1`, targeting BIDS `1.11.1`.
 - Limited runtime schema selection:
   - no `--schema`,
@@ -36,15 +33,11 @@ It is not a full replacement for the Deno validator yet.
 
 - Not all Deno validator issue families are implemented.
 - Text output is rejected; use JSON.
-- `--config`, `--max-rows`, `--filenameMode`, `--preferredRemote`,
-  and `--git-ref` are parsed and rejected.
-- URL schemas, `stable`, `latest`, and arbitrary newer schema files are
-  rejected for beta.
-- Python wheels are deferred until standalone CLI artifacts and smoke
-  tests are stable.
+- `--config`, `--max-rows`, `--filenameMode`, `--preferredRemote`, and `--git-ref` are parsed and rejected.
+- URL schemas, `stable`, `latest`, and arbitrary newer schema files are rejected for beta.
+- Python wheels are deferred until standalone CLI artifacts and smoke tests are stable.
 - WASM and N-API bindings are post-beta.
-- HED and citation behavior remains limited to the implemented parity
-  slice described in `../plan.md`.
+- HED and citation behavior remains limited to the implemented parity slice described in `../plan.md`.
 
 ## Default Command
 
@@ -62,8 +55,7 @@ The default is equivalent to:
   /path/to/dataset > rust-output.json
 ```
 
-Validation issues produce JSON and exit nonzero, matching CI-friendly
-validator behavior.
+Validation issues produce JSON and exit nonzero, matching CI-friendly validator behavior.
 
 ## Deno Comparison
 
@@ -85,8 +77,7 @@ When comparing results, start with structured issue identity:
 - `location`,
 - `subCode`.
 
-Message prose is representative and beta-targeted, not guaranteed
-byte-for-byte across every issue.
+Message prose is representative and beta-targeted, not guaranteed byte-for-byte across every issue.
 
 ## Content And Link Policies
 
@@ -96,33 +87,27 @@ Use default parity behavior for Deno comparisons:
 ./bids-validator --content-mode parity --link-mode parity /path/to/dataset
 ```
 
-In `--link-mode parity`, symlinked directories are registered as path
-entries but are not traversed. This matches Deno 2.4.1 behavior on
-fixtures such as `symlinked_subject`.
+In `--link-mode parity`, symlinked directories are registered as path entries but are not traversed. This matches Deno 2.4.1 behavior on fixtures such as `symlinked_subject`.
 
-Use thorough content reads when local symlink or git-annex object bytes
-are present and you want more complete local checks:
+Use thorough content reads when local symlink or git-annex object bytes are present and you want more complete local checks:
 
 ```sh
 ./bids-validator --content-mode thorough /path/to/dataset
 ```
 
-Use follow-link discovery when you explicitly want Rust to validate
-through symlinked directory trees:
+Use follow-link discovery when you explicitly want Rust to validate through symlinked directory trees:
 
 ```sh
 ./bids-validator --link-mode follow /path/to/dataset
 ```
 
-Use no-follow discovery when a dataset may contain large or hostile
-symlinked directory trees:
+Use no-follow discovery when a dataset may contain large or hostile symlinked directory trees:
 
 ```sh
 ./bids-validator --link-mode no-follow /path/to/dataset
 ```
 
-Do not compare `thorough`, `follow`, or `no-follow` output directly
-against Deno without documenting the policy difference.
+Do not compare `thorough`, `follow`, or `no-follow` output directly against Deno without documenting the policy difference.
 
 ## Version Output
 
@@ -196,11 +181,7 @@ For a downloaded artifact:
 python3 scripts/beta_smoke.py --bin /path/to/bids-validator
 ```
 
-The smoke test prints the exact command, version output, exit code,
-issue count, and SHA-256 hash of each JSON output. It validates the
-small pinned upstream fixture when available, otherwise it creates a
-temporary tiny dataset for CI/artifact smoke coverage. It also validates
-`/Users/chris/src/bidsui/datasets/ds002606` when present.
+The smoke test prints the exact command, version output, exit code, issue count, and SHA-256 hash of each JSON output. It validates the small pinned upstream fixture when available, otherwise it creates a temporary tiny dataset for CI/artifact smoke coverage. It also validates `/Users/chris/src/bidsui/datasets/ds002606` when present.
 
 ## Reporting Issues
 
@@ -211,8 +192,7 @@ Use the `Rust beta validator report` issue template and include:
 - dataset description and availability,
 - output hash from `scripts/beta_smoke.py` when possible,
 - Deno comparison output or a summary of structured differences,
-- whether `--content-mode thorough`, `--link-mode follow`, or
-  `--link-mode no-follow` was used.
+- whether `--content-mode thorough`, `--link-mode follow`, or `--link-mode no-follow` was used.
 
 ## Release Checklist
 
@@ -222,7 +202,6 @@ Use the `Rust beta validator report` issue template and include:
 4. `cargo clippy --workspace --all-targets -- -D warnings`.
 5. `cargo build --release --locked`.
 6. `python3 scripts/beta_smoke.py --bin target/release/bids-validator --skip-external`.
-7. Run `cargo deny check` if `cargo-deny` is installed; otherwise
-   document that dependency audit was not run in the release notes.
+7. Run `cargo deny check` if `cargo-deny` is installed; otherwise document that dependency audit was not run in the release notes.
 8. Build native artifacts for the target triples above.
 9. Publish SHA-256 checksums with the artifacts.
