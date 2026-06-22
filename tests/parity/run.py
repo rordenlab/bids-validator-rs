@@ -52,6 +52,7 @@ DATASETS = {
     # files — a separate unimplemented divergence, not in scope here.)
     "eeg_face13": ROOT / "data/eeg_face13",
     "ieeg_epilepsy": ROOT / "data/ieeg_epilepsy",
+    "ds114": ROOT / "data/ds114",  # DWI (bval/bvec inheritance)
 }
 
 # Multiset parity is judged against these codes (the Rust validator emits
@@ -127,6 +128,9 @@ RUST_CODES = {
     # adding them does not invalidate the MRI/PET dataset caches.
     "EOG_CHANNEL_COUNT_MISMATCH",
     "MISC_CHANNEL_COUNT_MISMATCH",
+    # Dataset-description check (exercised by ds114, whose
+    # dataset_description.json has a BIDSVersion the schema doesn't know).
+    "UNKNOWN_BIDS_VERSION",
 }
 
 # Rust can emit a small number of issue codes that are intentionally
