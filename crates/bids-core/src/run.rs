@@ -183,7 +183,7 @@ const PARALLEL_FILE_THRESHOLD: usize = 256;
 const DEFAULT_RAYON_THREADS: usize = 4;
 
 /// Read `BIDS_VALIDATOR_JOBS` if set to a positive integer; `None`
-/// otherwise. `0` and unparseable values fall back to the
+/// otherwise. `0` and unparsable values fall back to the
 /// `DEFAULT_RAYON_THREADS` cap.
 fn jobs_env() -> Option<usize> {
     std::env::var("BIDS_VALIDATOR_JOBS")

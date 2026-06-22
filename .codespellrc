@@ -1,0 +1,9 @@
+[codespell]
+# Ref: https://github.com/codespell-project/codespell#using-a-config-file
+# Skip generated/vendored/cached material and the pinned upstream schema
+# (load-bearing for parity — see schemas/SUPPORTED.md).
+skip = .git,.gitignore,.gitattributes,*.lock,.codespellrc,target,vendor,.cache,data,schema-*.json,tests/oracle/cases,tests/parity/cache,selectors_dump.txt
+check-hidden = true
+# ser - serde::ser module name (not a typo for "set")
+ignore-words-list = ser
+# ignore-regex =

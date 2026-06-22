@@ -17,7 +17,7 @@
 //! Audit response H14: three of the five sites used to drop only the
 //! offending selector (`filter_map`), which can silently flip a
 //! narrowing rule into a fires-on-everything rule when a future schema
-//! bump introduces an unparseable form. The shared helper removes that
+//! bump introduces an unparsable form. The shared helper removes that
 //! footgun.
 
 use bids_expr::{parse, Expr};
