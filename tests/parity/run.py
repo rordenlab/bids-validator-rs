@@ -159,6 +159,33 @@ RUST_CODES = {
     "BOLD_NOT_4D",
     "NIFTI_DIMENSION",
     "NIFTI_PIXDIM",
+    # ASL/perf rules.checks family (crafted-fixture verified vs Deno 2.4.1;
+    # see crates/bids-core/tests/asl_checks.rs).
+    "ASLCONTEXT_TSV_NOT_CONSISTENT",
+    "LABELING_DURATION_LENGTH_NOT_MATCHING_NIFTI",
+    "LABELLING_DURATION_NOT_MATCHING_ASLCONTEXT_TSV",
+    "FLIP_ANGLE_NOT_MATCHING_NIFTI",
+    "FLIP_ANGLE_NOT_MATCHING_ASLCONTEXT_TSV",
+    "POST_LABELING_DELAY_NOT_MATCHING_NIFTI",
+    "POST_LABELING_DELAY_NOT_MATCHING_ASLCONTEXT_TSV",
+    "REPETITIONTIMEPREPARATION_NOT_MATCHING_ASLCONTEXT_TSV",
+    "REPETITIONTIME_PREPARATION_NOT_CONSISTENT",
+    "ECHO_TIME_NOT_CONSISTENT",
+    "M0Type_SET_INCORRECTLY",
+    "M0Type_SET_INCORRECTLY_TO_ABSENT",
+    "M0Type_SET_INCORRECTLY_TO_ABSENT_IN_ASLCONTEXT",
+    "POST_LABELING_DELAY_GREATER",
+    "LABELING_DURATION_GREATER",
+    "BOLUS_CUT_OFF_DELAY_TIME_GREATER",
+    "BOLUS_CUT_OFF_DELAY_TIME_NOT_MONOTONICALLY_INCREASING",
+    "VOLUME_TIMING_NOT_MONOTONICALLY_INCREASING",
+    "VOLUME_TIMING_AND_REPETITION_TIME_MUTUALLY_EXCLUSIVE",
+    "REPETITION_TIME_AND_ACQUISITION_DURATION_MUTUALLY_EXCLUSIVE",
+    "VOLUME_TIMING_AND_DELAY_TIME_MUTUALLY_EXCLUSIVE",
+    "VOLUME_TIMING_MISSING_ACQUISITION_DURATION",
+    "DEPRECATED_ACQUISITION_DURATION",
+    "BACKGROUND_SUPPRESSION_PULSE_NUMBER_NOT_CONSISTENT",
+    "TOTAL_ACQUIRED_VOLUMES_NOT_CONSISTENT",
     # rules.errors emissions (Phase 1 scope expansion)
     "SIDECAR_WITHOUT_DATAFILE",
     # Electrophysiology channel-count checks (exercised by eeg_face13).
@@ -352,8 +379,11 @@ def main():
             i += 1
     # Default = the green set; opt-in datasets only run when named explicitly.
     all_datasets = {**DATASETS, **OPT_IN_DATASETS}
+    default_run = not names  # no datasets named on the CLI
     names = names or list(DATASETS.keys())
     overall_ok = True
+    ran = 0
+    skipped = []
     for name in names:
         if name not in all_datasets:
             print(f"unknown dataset {name}")
@@ -361,6 +391,7 @@ def main():
         path = all_datasets[name]
         if not path.is_dir():
             print(f"  skip {name} (missing path)")
+            skipped.append(name)
             continue
         print(f"=== {name} ===")
         rust = run_rust(path, rust_schema=rust_schema)
@@ -373,6 +404,7 @@ def main():
             print("  ERROR: no Deno cache available and Deno run failed")
             overall_ok = False
             continue
+        ran += 1
 
         rust_ms = multiset(rust, RUST_CODES)
         rust_total_all = sum(multiset(rust, None).values())
@@ -402,6 +434,19 @@ def main():
                 print(f"  deno-only ({sum(deno_only.values())}):")
                 for k, n in deno_only.most_common(20):
                     print(f"    {n}x {k}")
+
+    # Don't let a clean checkout (no fetched datasets) look like a pass:
+    # a default run that compared nothing is a failure, not success.
+    print(f"\n=== summary: {ran} dataset(s) compared, {len(skipped)} skipped ===")
+    if skipped:
+        print(f"  skipped: {', '.join(skipped)}")
+    if ran == 0:
+        print("  ERROR: no datasets were compared. Run scripts/fetch_upstream.py "
+              "and scripts/fetch_bench_data.py to populate the parity corpus.")
+        overall_ok = False
+    elif default_run and skipped:
+        print("  NOTE: some default datasets were skipped (not fetched); "
+              "coverage is partial.")
     sys.exit(0 if overall_ok else 1)
 
 

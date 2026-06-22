@@ -80,6 +80,14 @@ A later review of the crafted-fixture work (DWI/fmap/NIfTI families). Resolution
 - **Fixture builder doesn't populate modalities/subjects — Documented.** Added a note on `build_ctx` that it's a narrow fixture builder (empty `dataset_modalities`/`dataset_subjects`); tests depending on those must set them explicitly.
 - **Clean-checkout coverage / TSV buffering / cache lock / association alloc — Discuss / Won't fix.** Pre-existing and by-design (parity sweep + oracle are local dev tools, CI runs `cargo test`); tracked in `CLAUDE.md`. The crafted-fixture integration tests are the durable, CI-gated guard.
 
+## Round 4 (ASL/perf PR #4 audit)
+
+- **Default sweep could pass vacuously — Fixed.** `run.py` now counts datasets actually compared, prints a summary (`N compared, M skipped`), and **fails (exit 1) when zero datasets ran** (e.g. a clean checkout with no fetched corpus). A default run with some skips prints a partial-coverage NOTE. Verified: `run.py ds000003` (missing path) → exit 1; full default sweep → exit 0.
+- **ASL evidence classification stale — Fixed.** Added the ASL/perf family (25 codes) to the crafted-fixture evidence bucket in `ISSUE_COVERAGE.md`.
+- **ASL fixture helper lifetime juggling — Fixed.** Removed the redundant `drop(ctx)` and replaced the misleading comment with an accurate lifetime note.
+- **Deno oracle skip-on-missing — Discuss (by design).** Same class as the parity sweep: oracle cases are gitignored/generated locally; CI gates on `cargo test` over committed tests (the crafted-fixture integration tests are the durable signal). The new zero-ran guard covers the parity side. Marking oracle tests `#[ignore]` when manifests are absent is a possible future refinement.
+- **TSV full-buffer / cache write-lock / association alloc — Won't fix (now).** Pre-existing, bounded, no leak; tracked.
+
 ## Verdict
 
 Committable. `cargo fmt`, `clippy -D warnings`, and `cargo test --workspace` are green. The **default** parity sweep is green on all 14 present datasets (vendor + fetched bids-examples); `ds005016` (opt-in) carries documented pre-existing divergences; `ds000003`/`ds002606` (opt-in) skip when their machine-specific paths are absent.
