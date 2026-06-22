@@ -49,24 +49,35 @@ fn pet_frame_consistency() {
 
 #[test]
 fn pet_frame_duration_not_matching_nifti() {
-    // FrameDuration (len 3) != dim[4] (4); FrameTimesStart also len 3 so
-    // PET_FRAME_CONSISTENCY stays silent.
+    // Asymmetric: FrameDuration (len 3) != dim[4] (4), FrameTimesStart
+    // (len 4) == dim[4]. Proves the code is wired to FrameDuration — only
+    // the duration check fires, not the times-start one.
     let issues = pet_issues(
         4,
         PIX_OK,
-        r#"{"FrameDuration":[1,2,3],"FrameTimesStart":[0,1,2]}"#,
+        r#"{"FrameDuration":[1,2,3],"FrameTimesStart":[0,1,2,3]}"#,
     );
     assert!(fires(&issues, "PET_FRAME_CONSISTENCY_FRAME_DURATION"));
+    assert!(
+        issue_locations(&issues, "PET_FRAME_CONSISTENCY_FRAME_TIMES_START").is_empty(),
+        "FrameTimesStart matches dim[4]; its check must stay silent"
+    );
 }
 
 #[test]
 fn pet_frame_times_start_not_matching_nifti() {
+    // Mirror: FrameTimesStart (len 3) != dim[4] (4), FrameDuration (len 4)
+    // == dim[4]. Only the times-start check fires.
     let issues = pet_issues(
         4,
         PIX_OK,
-        r#"{"FrameDuration":[1,2,3],"FrameTimesStart":[0,1,2]}"#,
+        r#"{"FrameDuration":[1,2,3,4],"FrameTimesStart":[0,1,2]}"#,
     );
     assert!(fires(&issues, "PET_FRAME_CONSISTENCY_FRAME_TIMES_START"));
+    assert!(
+        issue_locations(&issues, "PET_FRAME_CONSISTENCY_FRAME_DURATION").is_empty(),
+        "FrameDuration matches dim[4]; its check must stay silent"
+    );
 }
 
 #[test]
