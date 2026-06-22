@@ -47,11 +47,11 @@ fn asl_issues(nvol: i16, ctx_types: Option<&[&str]>, sidecar: &str, m0scan: bool
             br#"{"IntendedFor": "bids::sub-01/perf/sub-01_asl.nii"}"#,
         ));
     }
+    // `_t`, `ctx`, and the owned byte buffers above all live to the end of
+    // this function, so the borrowed `files` entries stay valid through
+    // validation; `issues` is owned and outlives them.
     let (_t, ctx) = build_ctx(&files);
-    // keep ctx_tsv/asl/m0 alive until after validation
-    let issues = validate_dataset(&ctx).issues.issues;
-    drop(ctx);
-    issues
+    validate_dataset(&ctx).issues.issues
 }
 
 fn fires(issues: &[Issue], code: &str) -> bool {
