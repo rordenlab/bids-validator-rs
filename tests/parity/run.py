@@ -134,6 +134,14 @@ RUST_CODES = {
     "BVEC_NUMBER_ROWS",
     "DWI_MISSING_BVAL",
     "DWI_MISSING_BVEC",
+    # fmap rules.checks family (crafted-fixture verified vs Deno 2.4.1; see
+    # crates/bids-core/tests/fmap_checks.rs).
+    "FIELDMAP_WITHOUT_MAGNITUDE_FILE",
+    "MISSING_MAGNITUDE1_FILE",
+    "ECHOTIME1_2_DIFFERENCE_UNREASONABLE",
+    "MAGNITUDE_FILE_WITH_TOO_MANY_DIMENSIONS",
+    "EPI_WITH_BVALS_NEEDS_SMALL_BVALS",
+    "TOTAL_READOUT_TIME_MUST_DEFINE",
     # rules.errors emissions (Phase 1 scope expansion)
     "SIDECAR_WITHOUT_DATAFILE",
     # Electrophysiology channel-count checks (exercised by eeg_face13).
