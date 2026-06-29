@@ -39,8 +39,12 @@ for:
         - job_name: win
 
     build_script:
-      - rustup default stable
-      - cargo build --release --locked
+      # Rust is not preinstalled on the VS2022 image, so install via rustup.
+      # PATH set with `set` does not persist across AppVeyor script lines, so
+      # chain it with the build on a single line.
+      - appveyor-retry appveyor DownloadFile https://win.rustup.rs/x86_64 -FileName rustup-init.exe
+      - rustup-init.exe -y --profile minimal --default-toolchain stable
+      - set "PATH=%USERPROFILE%\.cargo\bin;%PATH%" && cargo build --release --locked
 
     after_build:
       - 7z a bids-validator_win.zip .\target\release\bids-validator.exe >$null
