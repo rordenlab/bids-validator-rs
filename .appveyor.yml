@@ -39,8 +39,12 @@ for:
         - job_name: win
 
     build_script:
-      - rustup default stable
-      - cargo build --release --locked
+      # Rust is not preinstalled on the VS2022 image, so install via rustup.
+      # PATH set with `set` does not persist across AppVeyor script lines, so
+      # chain it with the build on a single line.
+      - appveyor-retry appveyor DownloadFile https://win.rustup.rs/x86_64 -FileName rustup-init.exe
+      - rustup-init.exe -y --profile minimal --default-toolchain stable
+      - set "PATH=%USERPROFILE%\.cargo\bin;%PATH%" && cargo build --release --locked
 
     after_build:
       - 7z a bids-validator_win.zip .\target\release\bids-validator.exe >$null
@@ -52,8 +56,10 @@ for:
         - job_name: linux
 
     build_script:
-      - rustup default stable
-      - cargo build --release --locked
+      # rustup is not on PATH on the Ubuntu image; ensure a toolchain, then
+      # build. Single line so the PATH export persists (AppVeyor runs each
+      # script line in its own shell).
+      - "export PATH=$HOME/.cargo/bin:$PATH; command -v cargo >/dev/null 2>&1 || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable; cargo build --release --locked"
 
     after_build:
       - strip -sx target/release/bids-validator
@@ -67,10 +73,9 @@ for:
 
     build_script:
       # Universal (x86_64 + arm64) binary, matching the dcm2niix/niimath approach.
-      - rustup default stable
-      - rustup target add x86_64-apple-darwin aarch64-apple-darwin
-      - cargo build --release --locked --target x86_64-apple-darwin
-      - cargo build --release --locked --target aarch64-apple-darwin
+      # rustup is not on PATH on the macOS image; ensure a toolchain first.
+      # Single line so the PATH export persists across the steps.
+      - "export PATH=$HOME/.cargo/bin:$PATH; command -v cargo >/dev/null 2>&1 || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable; rustup target add x86_64-apple-darwin aarch64-apple-darwin; cargo build --release --locked --target x86_64-apple-darwin; cargo build --release --locked --target aarch64-apple-darwin"
 
     after_build:
       - lipo -create -output bids-validator target/x86_64-apple-darwin/release/bids-validator target/aarch64-apple-darwin/release/bids-validator
