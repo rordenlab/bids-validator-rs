@@ -23,14 +23,14 @@ use crate::inheritance::{
 };
 use crate::issue::{Issue, IssueList, Severity, ValidationResult};
 use crate::metadata::{
-    build_eval_context, check_json, check_sidecars, set_eval_context_associations, DatasetSubjects,
-    SidecarContext, SidecarKeyValidated,
+    build_eval_context, check_json, check_sidecars, set_eval_context_associations,
+    set_eval_context_columns, DatasetSubjects, SidecarContext, SidecarKeyValidated,
 };
 use crate::nifti::{header_to_json, read_header};
 use crate::rules::{validate_file, DatasetType, FileContext};
 use crate::tables::check_tables;
 use crate::tiff::{ome_to_json, parse_tiff, tiff_to_json};
-use crate::tsv::{load_tsv, load_tsvgz, TsvColumns};
+use crate::tsv::{load_headerless_tsv, load_tsv, TsvColumns};
 
 /// A file discovered by the dataset walker. Produced by the CLI (or
 /// any other front-end) and handed to [`DatasetContext`] for
@@ -288,6 +288,17 @@ fn emit_orphan_sidecar_issues(
     }
 }
 
+fn string_array(value: Option<&J>) -> Vec<String> {
+    value
+        .and_then(|v| v.as_array())
+        .map(|xs| {
+            xs.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn validate_one_file(
     ctx: &DatasetContext,
     file: &DiscoveredFile,
@@ -475,30 +486,31 @@ fn validate_one_file(
         });
     }
 
-    let (columns, parse_issue) = if parsed.extension == ".tsv" {
-        load_tsv(fs_path, &policy)
-    } else if parsed.extension == ".tsv.gz" {
-        let headers = merged
-            .get("Columns")
-            .and_then(|v| v.as_array())
-            .map(|xs| {
-                xs.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+    // `_motion.tsv` is headerless; its column names come from the
+    // `channels` association, so it loads after associations (Deno 3.0.1).
+    let is_motion = parsed.extension == ".tsv" && parsed.suffix == "motion";
+    let load_headerless = |headers: Option<&J>, compressed: bool| {
+        let headers = string_array(headers);
         if headers.is_empty() || file_size == 0 {
             (TsvColumns::default(), None)
         } else {
-            load_tsvgz(fs_path, &headers, &policy)
+            load_headerless_tsv(fs_path, &headers, compressed, &policy)
         }
+    };
+    let push_parse_issue = |parse_issue: Option<Issue>, issues: &mut Vec<Issue>| {
+        if let Some(mut issue) = parse_issue {
+            issue.location = bids_path.clone();
+            issues.push(issue);
+        }
+    };
+    let (columns, parse_issue) = if parsed.extension == ".tsv" && !is_motion {
+        load_tsv(fs_path, &policy)
+    } else if parsed.extension == ".tsv.gz" {
+        load_headerless(merged.get("Columns"), true)
     } else {
         (TsvColumns::default(), None)
     };
-    if let Some(mut issue) = parse_issue {
-        issue.location = bids_path.clone();
-        issues.push(issue);
-    }
+    push_parse_issue(parse_issue, &mut issues);
 
     // Associations need a seed context (with empty associations data),
     // then the final context replaces that field.
@@ -537,8 +549,16 @@ fn validate_one_file(
     // present-and-associated coordsystem.json as used, not orphaned.
     viewed_sidecars.extend(assoc_viewed);
 
+    let motion_columns = is_motion.then(|| {
+        let (columns, parse_issue) = load_headerless(associations.pointer("/channels/name"), false);
+        push_parse_issue(parse_issue, &mut issues);
+        set_eval_context_columns(&mut ctx_value, &columns);
+        columns
+    });
+    let columns = motion_columns.as_ref().unwrap_or(&columns);
     let sctx = SidecarContext {
         associations: &associations,
+        columns,
         ..assoc_seed
     };
     // Build the selector evaluation context once with empty
@@ -552,7 +572,7 @@ fn validate_one_file(
     issues.extend(check_rules(&sctx, &ctx_value));
 
     if parsed.extension == ".tsv" || parsed.extension == ".tsv.gz" {
-        issues.extend(check_tables(&sctx, &ctx_value, &columns));
+        issues.extend(check_tables(&sctx, &ctx_value, columns));
     }
 
     PerFileBundle {

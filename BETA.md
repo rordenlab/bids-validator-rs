@@ -1,6 +1,6 @@
 # Rust Validator Beta
 
-Status date: 2026-06-22.
+Status date: 2026-10-31.
 
 This beta is a native Rust validator for the current parity slice. It is intended for technical testers who can compare JSON output against the Deno validator and report precise differences.
 
@@ -10,12 +10,12 @@ It is not a full replacement for the Deno validator yet.
 
 - Standalone CLI binary.
 - JSON output only: compact JSON by default, `--json`, `--format json`, and `--format json_pp`.
-- Bundled `@bids/schema` `1.2.1`, targeting BIDS `1.11.1`.
+- Bundled `@bids/schema` `1.2.7`, targeting BIDS `1.11.1`.
 - Limited runtime schema selection:
   - no `--schema`,
-  - `--schema schemas/schema-1.2.1.json`,
-  - `--schema 1.2.1`,
-  - `--schema v1.2.1`,
+  - `--schema schemas/schema-1.2.7.json`,
+  - `--schema 1.2.7`,
+  - `--schema v1.2.7`,
   - `--schema 1.11.1`.
 - Implemented Deno-compatible flags:
   - `--ignoreWarnings`,
@@ -87,7 +87,7 @@ Use default parity behavior for Deno comparisons:
 ./bids-validator --content-mode parity --link-mode parity /path/to/dataset
 ```
 
-In `--link-mode parity`, symlinked directories are registered as path entries but are not traversed. This matches Deno 2.4.1 behavior on fixtures such as `symlinked_subject`.
+In `--link-mode parity`, symlinked directories are traversed, matching Deno 3.x on fixtures such as `symlinked_subject`. In every link mode, dangling non-annex symlinks are reported as `SYMLINK_BROKEN` (`SYMLINK_CYCLE` for loops) instead of being validated as files; git-annex links without local content are still files.
 
 Use thorough content reads when local symlink or git-annex object bytes are present and you want more complete local checks:
 
@@ -95,7 +95,7 @@ Use thorough content reads when local symlink or git-annex object bytes are pres
 ./bids-validator --content-mode thorough /path/to/dataset
 ```
 
-Use follow-link discovery when you explicitly want Rust to validate through symlinked directory trees:
+`--link-mode follow` is kept for compatibility and now behaves like `parity`:
 
 ```sh
 ./bids-validator --link-mode follow /path/to/dataset

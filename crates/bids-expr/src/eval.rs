@@ -254,9 +254,6 @@ fn builtins() -> &'static IndexMap<&'static str, BuiltinFn> {
         m.insert("intersects", builtin_intersects);
         m.insert("type", builtin_type);
         m.insert("length", builtin_length);
-        // `len` is an alias used by some `rules.checks.*` expressions
-        // (e.g. `len(sidecar.EchoTime)`). TS treats it the same.
-        m.insert("len", builtin_length);
         m.insert("count", builtin_count);
         m.insert("index", builtin_index);
         m.insert("substr", builtin_substr);

@@ -1,6 +1,6 @@
 [package]
 name = "bids-validator-rs"
-version = "0.1.20260517"
+version = "0.1.20261031"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/bids-standard/bids-validator-rs"
@@ -25,7 +25,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.20260517"
+version = "0.1.20261031"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/bids-standard/bids-validator-rs"
@@ -80,6 +80,6 @@ panic = "abort"
 debug = "line-tables-only"
 
 [package.metadata.bids-validator]
-upstream_version = "2.4.1"
-upstream_commit = "94ea9719efbbac7531fed8ad8a2a7bf764cee51f"
-upstream_archive = "https://github.com/bids-standard/bids-validator/archive/94ea9719efbbac7531fed8ad8a2a7bf764cee51f.tar.gz"
+upstream_version = "3.0.2"
+upstream_commit = "f9c59e00f47f4e74e38e8c567d9073ad4b0a5b38"
+upstream_archive = "https://github.com/bids-standard/bids-validator/archive/f9c59e00f47f4e74e38e8c567d9073ad4b0a5b38.tar.gz"

@@ -285,6 +285,7 @@ fn load_one(
                 "type": nullable_column(&cols, "type"),
                 "short_channel": nullable_column(&cols, "short_channel"),
                 "sampling_frequency": nullable_column(&cols, "sampling_frequency"),
+                "name": nullable_column(&cols, "name"),
             })
         }
         "physio" => serde_json::json!({

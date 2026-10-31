@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BIN = ROOT / "target/release/bids-validator"
-DEFAULT_SMALL_DATASET = ROOT / "vendor/bids-validator-2.4.1/tests/data/valid_headers"
+DEFAULT_SMALL_DATASET = ROOT / "vendor/bids-validator-3.0.2/tests/data/valid_headers"
 DEFAULT_EXTERNAL = Path("/Users/chris/src/bidsui/datasets/ds002606")
 
 VERSION_FIELDS = [

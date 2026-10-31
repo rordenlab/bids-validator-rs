@@ -3,7 +3,7 @@
 
 The Rust repository intentionally does not vendor the full TypeScript
 validator. This script downloads the pinned release source into
-`vendor/bids-validator-2.4.1` so Deno parity tests and
+`vendor/bids-validator-3.0.2` so Deno parity tests and
 oracle exporters can use the exact upstream rules/tests they target.
 """
 
@@ -18,8 +18,8 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.4.1"
-COMMIT = "94ea9719efbbac7531fed8ad8a2a7bf764cee51f"
+VERSION = "3.0.2"
+COMMIT = "f9c59e00f47f4e74e38e8c567d9073ad4b0a5b38"
 ARCHIVE_URL = f"https://github.com/bids-standard/bids-validator/archive/{COMMIT}.tar.gz"
 
 

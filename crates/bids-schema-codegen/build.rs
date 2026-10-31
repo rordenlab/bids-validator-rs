@@ -34,7 +34,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-const SCHEMA_REL: &str = "../../schemas/schema-1.2.1.json";
+const SCHEMA_REL: &str = "../../schemas/schema-1.2.7.json";
 
 fn main() {
     println!("cargo:rerun-if-changed={SCHEMA_REL}");
@@ -45,7 +45,7 @@ fn main() {
     let text = fs::read_to_string(&schema_path)
         .unwrap_or_else(|e| panic!("failed to read schema at {schema_path:?}: {e}"));
     let schema: serde_json::Value =
-        serde_json::from_str(&text).expect("schema-1.2.1.json failed to parse at build time");
+        serde_json::from_str(&text).expect("schema-1.2.7.json failed to parse at build time");
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     write_formats(&schema, &out_dir.join("generated_formats.rs"));

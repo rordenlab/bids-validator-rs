@@ -16,7 +16,7 @@ Refresh after: (a) the Deno entrypoint changes, (b) the embedded
 Usage:
   python3 tests/parity/run.py [dataset_name ...]
   python3 tests/parity/run.py --refresh
-  python3 tests/parity/run.py --rust-schema schemas/schema-1.2.1.json
+  python3 tests/parity/run.py --rust-schema schemas/schema-1.2.7.json
 """
 import collections
 import json
@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-UPSTREAM_ROOT = Path(os.environ.get("BIDS_VALIDATOR_UPSTREAM_ROOT", ROOT / "vendor/bids-validator-2.4.1"))
+UPSTREAM_ROOT = Path(os.environ.get("BIDS_VALIDATOR_UPSTREAM_ROOT", ROOT / "vendor/bids-validator-3.0.2"))
 RUST_BIN = Path(os.environ.get("BIDS_VALIDATOR_RS_BIN", ROOT / "target/release/bids-validator"))
 RUST_CONTENT_MODE = "parity"
 RUST_LINK_MODE = "parity"
@@ -59,6 +59,7 @@ DATASETS = {
     "eeg_rest_fmri": ROOT / "data/eeg_rest_fmri",  # EEG + events
     "asl001": ROOT / "data/asl001",  # ASL (aslcontext, perf sidecar)
     "pet003": ROOT / "data/pet003",  # PET (frame timing sidecar)
+    "motion_spotrotation": ROOT / "data/motion_spotrotation",  # headerless _motion.tsv
 }
 
 # Opt-in datasets: machine-specific absolute paths AND/OR known-red
@@ -105,6 +106,11 @@ RUST_CODES = {
     "SUBJECT_FOLDERS",
     # Inheritance walk
     "MULTIPLE_INHERITABLE_FILES",
+    # Unresolvable symlinks (Deno 3.x walk.ts)
+    "SYMLINK_BROKEN",
+    "SYMLINK_CYCLE",
+    # Schema 1.2.7
+    "BEH_ONSET_DURATION",
     # rules.checks (added per Phase 1 NIfTI / rules.checks slice)
     "DUPLICATE_FILES",
     "GZIP_HEADER_COMMENT",
@@ -243,7 +249,7 @@ NON_CONTRACT_RUST_CODES = {
 # Keep empty unless a divergence is tied to one specific subCode and
 # documented in README/audit notes. Do not add
 # SIDECAR_KEY_RECOMMENDED / AcquisitionDuration here: Rust should
-# suppress detailed deprecated fields like Deno 2.4.1.
+# suppress detailed deprecated fields like Deno.
 KNOWN_DIVERGENCE_ISSUES: set[tuple[str, str, str | None]] = set()
 
 KNOWN_DIVERGENCES: set[tuple[str, str]] = {

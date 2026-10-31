@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-env --config vendor/bids-validator-3.0.2/deno.json
 /**
  * Export language-neutral oracle cases from the TypeScript validator.
  *
@@ -8,10 +8,10 @@
  * portable contracts.
  */
 
-import { readEntities } from '../../vendor/bids-validator-2.4.1/src/schema/entities.ts'
-import { parseGzip } from '../../vendor/bids-validator-2.4.1/src/files/gzip.ts'
-import { parseTIFF } from '../../vendor/bids-validator-2.4.1/src/files/tiff.ts'
-import { BIDSFileDeno } from '../../vendor/bids-validator-2.4.1/src/files/deno.ts'
+import { readEntities } from '../../vendor/bids-validator-3.0.2/src/schema/entities.ts'
+import { parseGzip } from '../../vendor/bids-validator-3.0.2/src/files/gzip.ts'
+import { parseTIFF } from '../../vendor/bids-validator-3.0.2/src/files/tiff.ts'
+import { BIDSFileDeno } from '../../vendor/bids-validator-3.0.2/src/files/deno.ts'
 
 type OracleManifest = {
   schemaVersion: 1
@@ -122,5 +122,5 @@ function pathFromRoot(relative: string): string {
 }
 
 function repoRoot(): URL {
-  return new URL('../../vendor/bids-validator-2.4.1/', import.meta.url)
+  return new URL('../../vendor/bids-validator-3.0.2/', import.meta.url)
 }
