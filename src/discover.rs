@@ -202,7 +202,10 @@ fn unresolved_link_code(path: &Path, dir_loop: bool) -> Option<&'static str> {
 
 #[cfg(target_os = "linux")]
 const ELOOP: i32 = 40;
-#[cfg(not(target_os = "linux"))]
+// ERROR_CANT_RESOLVE_FILENAME: what Windows reports for a symlink loop.
+#[cfg(windows)]
+const ELOOP: i32 = 1921;
+#[cfg(not(any(target_os = "linux", windows)))]
 const ELOOP: i32 = 62; // macOS / BSD
 
 /// `annexKeyRegex` in upstream `src/files/repo.ts`:
