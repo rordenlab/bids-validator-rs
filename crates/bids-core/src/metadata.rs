@@ -312,6 +312,12 @@ pub fn set_eval_context_associations(ctx: &mut Value, associations: &J) {
     }
 }
 
+pub fn set_eval_context_columns(ctx: &mut Value, columns: &TsvColumns) {
+    if let Value::Object(map) = ctx {
+        map.insert("columns".to_string(), columns_value(columns));
+    }
+}
+
 /// Static (process-lifetime) view of `schema.{objects.enums, meta.versions}`
 /// in `bids-expr`'s `Value` shape. Used by selectors that reference
 /// `schema.objects.enums.*.enum` or `schema.meta.versions`. The body

@@ -3,8 +3,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-const DEFAULT_UPSTREAM_VERSION: &str = "2.4.1";
-const DEFAULT_UPSTREAM_COMMIT: &str = "94ea9719efbbac7531fed8ad8a2a7bf764cee51f";
+const DEFAULT_UPSTREAM_VERSION: &str = "3.0.2";
+const DEFAULT_UPSTREAM_COMMIT: &str = "f9c59e00f47f4e74e38e8c567d9073ad4b0a5b38";
 
 fn main() {
     println!("cargo:rerun-if-env-changed=BIDS_VALIDATOR_GIT_COMMIT");

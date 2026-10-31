@@ -23,13 +23,13 @@ Expression-language schema oracle coverage already lives in `crates/bids-expr/te
 From the repository root:
 
 ```sh
-deno run --allow-read --allow-write --allow-env tests/oracle/export.ts
+deno run --allow-read --allow-write --allow-env --config vendor/bids-validator-3.0.2/deno.json tests/oracle/export.ts
 ```
 
 If `deno` is not on `PATH` in the local shell:
 
 ```sh
-/Users/chris/.deno/bin/deno run --allow-read --allow-write --allow-env tests/oracle/export.ts
+/Users/chris/.deno/bin/deno run --allow-read --allow-write --allow-env --config vendor/bids-validator-3.0.2/deno.json tests/oracle/export.ts
 ```
 
 Then run:

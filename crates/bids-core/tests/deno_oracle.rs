@@ -137,7 +137,7 @@ fn repo_root() -> Option<PathBuf> {
     let candidate = std::env::var_os("BIDS_VALIDATOR_UPSTREAM_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../vendor/bids-validator-2.4.1")
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../vendor/bids-validator-3.0.2")
         });
     candidate.canonicalize().ok()
 }

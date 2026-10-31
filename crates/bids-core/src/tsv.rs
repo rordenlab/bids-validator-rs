@@ -141,34 +141,40 @@ pub fn parse_tsv(text: &str) -> (TsvColumns, Option<Issue>) {
     parse_rows(&lines[1..], headers, 1)
 }
 
-/// Load a `.tsv.gz` body using sidecar-provided `Columns` headers,
-/// gated by `policy`. Mirrors `src/files/tsv.ts::loadTSVGZ`: there is
-/// no header row in the compressed data, so duplicate-header checks
-/// are not performed here.
-pub fn load_tsvgz(
+/// Load a headerless TSV body (`.tsv.gz` with sidecar `Columns`, or
+/// `_motion.tsv` with `channels.tsv` names), gated by `policy`. Mirrors
+/// `src/files/tsv.ts::loadHeaderlessTSV`: no header row, so no
+/// duplicate-header check.
+pub fn load_headerless_tsv(
     path: &Path,
     headers: &[String],
+    compressed: bool,
     policy: &ContentPolicy,
 ) -> (TsvColumns, Option<Issue>) {
     let Some(f) = policy.open(path) else {
         return (TsvColumns::default(), None);
     };
     // Cap inflated bytes at TSV_BYTE_LIMIT to bound gzip-bomb exposure.
-    // The decoder reads compressed input; the helper caps decompressed
-    // output. If the cap is hit, skip tabular validation instead of
-    // validating a silently truncated body.
-    let decoder = GzDecoder::new(f);
-    let bytes = match read_limited(decoder, TSV_BYTE_LIMIT) {
+    // If the cap is hit, skip tabular validation instead of validating a
+    // silently truncated body.
+    let read = if compressed {
+        read_limited(GzDecoder::new(f), TSV_BYTE_LIMIT)
+    } else {
+        read_limited(f, TSV_BYTE_LIMIT)
+    };
+    let bytes = match read {
         Ok(LimitedRead::Complete(bytes)) => bytes,
         Ok(LimitedRead::TooLarge) => return (TsvColumns::default(), Some(file_read_limit_issue())),
-        Err(_) => return (TsvColumns::default(), Some(invalid_gzip_issue())),
+        Err(_) => return (TsvColumns::default(), compressed.then(invalid_gzip_issue)),
     };
-    let text = match String::from_utf8(bytes) {
-        Ok(s) => s,
-        // Deno's loadTSVGZ catch-arm maps UTF-8 decoder failures to
-        // INVALID_GZIP because they surface from the decompression/UTF-8
-        // stream chain without a BIDS issue code.
-        Err(_) => return (TsvColumns::default(), Some(invalid_gzip_issue())),
+    let Ok(text) = String::from_utf8(bytes) else {
+        // Deno's gzip catch-arm maps decoder failures to INVALID_GZIP.
+        let issue = if compressed {
+            invalid_gzip_issue()
+        } else {
+            invalid_file_encoding_issue()
+        };
+        return (TsvColumns::default(), Some(issue));
     };
     parse_tsv_body_with_headers(&text, headers)
 }

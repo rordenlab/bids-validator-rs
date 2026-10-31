@@ -101,7 +101,7 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "bids-core"
-version = "0.1.20260517"
+version = "0.1.20261031"
 dependencies = [
  "bids-expr",
  "bids-schema-codegen",
@@ -117,7 +117,7 @@ dependencies = [
 
 [[package]]
 name = "bids-expr"
-version = "0.1.20260517"
+version = "0.1.20261031"
 dependencies = [
  "bids-schema-codegen",
  "indexmap",
@@ -128,7 +128,7 @@ dependencies = [
 
 [[package]]
 name = "bids-schema-codegen"
-version = "0.1.20260517"
+version = "0.1.20261031"
 dependencies = [
  "indexmap",
  "serde",
@@ -137,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "bids-validator-rs"
-version = "0.1.20260517"
+version = "0.1.20261031"
 dependencies = [
  "anyhow",
  "bids-core",

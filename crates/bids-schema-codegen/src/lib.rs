@@ -28,7 +28,7 @@ mod patches;
 /// Embedded schema text. Pinned by `rust/schemas/schema-<version>.json`
 /// symlink. Used only for the *runtime-parse* fallback path; the
 /// build-time codegen reads the same file in `build.rs`.
-pub const BUNDLED_SCHEMA_JSON: &str = include_str!("../../../schemas/schema-1.2.1.json");
+pub const BUNDLED_SCHEMA_JSON: &str = include_str!("../../../schemas/schema-1.2.7.json");
 
 // Build-time-generated static tables. Adding a new table is one
 // edit each here, in `build.rs::write_*`, and at the consuming
@@ -252,6 +252,10 @@ pub struct Rules {
     /// for NIfTI header consistency.
     #[serde(default)]
     pub checks: serde_json::Value,
+    /// `rules.directories.<DatasetType>.*` — `opaque` entries are not
+    /// descended into.
+    #[serde(default)]
+    pub directories: serde_json::Value,
 }
 
 /// A filename rule as it appears in `rules.files.*`.

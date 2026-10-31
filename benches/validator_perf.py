@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-UPSTREAM = ROOT / "vendor" / "bids-validator-2.4.1"
+UPSTREAM = ROOT / "vendor" / "bids-validator-3.0.2"
 DEFAULT_RUST_BIN = ROOT / "target" / "release" / "bids-validator"
 DEFAULT_DENO_BIN = Path(os.environ.get("DENO_BIN") or shutil.which("deno") or "/Users/chris/.deno/bin/deno")
 LOCAL_DATASETS = {

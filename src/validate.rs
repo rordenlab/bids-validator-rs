@@ -98,7 +98,13 @@ fn validate_single_dataset(
         files,
         modalities_seen,
         root_dirs,
-    } = discover_dataset(root, bidsignore.as_ref(), cli.link_mode);
+        link_issues,
+    } = discover_dataset(
+        root,
+        bidsignore.as_ref(),
+        cli.link_mode,
+        dataset_type_name(dataset_type),
+    );
 
     let index = build_index(&files);
     let dataset_modalities: Vec<String> = modalities_seen.into_iter().collect();
@@ -125,6 +131,7 @@ fn validate_single_dataset(
     let mut result = validate_dataset(&ctx);
     apply_dataset_type_filter(&mut result.issues.issues, dataset_type, &cli.dataset_types);
     result.issues.issues.extend(blacklist_issues);
+    result.issues.issues.extend(link_issues);
 
     Ok(CliValidationResult {
         issues: result.issues,

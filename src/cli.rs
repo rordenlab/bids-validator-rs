@@ -11,9 +11,9 @@ pub(crate) fn version_string() -> &'static str {
     static CELL: OnceLock<String> = OnceLock::new();
     CELL.get_or_init(|| {
         let s = bids_schema_codegen::schema();
-        let upstream_version = option_env!("BIDS_VALIDATOR_UPSTREAM_VERSION").unwrap_or("2.4.1");
+        let upstream_version = option_env!("BIDS_VALIDATOR_UPSTREAM_VERSION").unwrap_or("3.0.2");
         let upstream_commit_full = option_env!("BIDS_VALIDATOR_UPSTREAM_COMMIT")
-            .unwrap_or("94ea9719efbbac7531fed8ad8a2a7bf764cee51f");
+            .unwrap_or("f9c59e00f47f4e74e38e8c567d9073ad4b0a5b38");
         let upstream_commit = upstream_commit_full
             .get(..7)
             .unwrap_or(upstream_commit_full);
@@ -156,9 +156,9 @@ pub(crate) enum ContentMode {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 pub(crate) enum LinkMode {
-    /// Match Deno-compatible discovery by not traversing symlinked directories.
+    /// Match Deno 3.x discovery: symlinked directories are traversed.
     Parity,
-    /// Traverse symlinked directories during discovery.
+    /// Traverse symlinked directories during discovery (same as `parity`).
     Follow,
     /// Do not traverse symlinked directories during discovery.
     NoFollow,
@@ -166,11 +166,7 @@ pub(crate) enum LinkMode {
 
 impl LinkMode {
     pub(crate) fn follows_dirs(self) -> bool {
-        matches!(self, LinkMode::Follow)
-    }
-
-    pub(crate) fn registers_symlinked_dirs(self) -> bool {
-        matches!(self, LinkMode::Parity | LinkMode::Follow)
+        !matches!(self, LinkMode::NoFollow)
     }
 }
 
@@ -301,7 +297,7 @@ mod tests {
     #[test]
     fn accepts_bundled_schema_path_and_matching_tags() {
         let schema_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("schemas/schema-1.2.1.json")
+            .join("schemas/schema-1.2.7.json")
             .canonicalize()
             .unwrap();
         let path_ctx = load_schema_context(Some(schema_path.to_str().unwrap())).unwrap();

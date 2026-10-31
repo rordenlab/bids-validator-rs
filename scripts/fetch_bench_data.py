@@ -41,6 +41,7 @@ BIDS_EXAMPLES_DATASETS = {
     "eeg_rest_fmri",
     "asl001",
     "pet003",
+    "motion_spotrotation",
 }
 # Datasets whose NIfTI placeholders get rewritten to tiny valid headers
 # (and fetched to data/<name>-tiny). Only image datasets need this.

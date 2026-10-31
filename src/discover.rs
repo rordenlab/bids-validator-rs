@@ -9,6 +9,7 @@ use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use walkdir::WalkDir;
 
 use bids_core::filename::parse_filename;
+use bids_core::issue::{Issue, Severity};
 use bids_core::run::DiscoveredFile;
 use bids_schema_codegen::modality_of;
 
@@ -18,6 +19,9 @@ pub(crate) struct Discovery {
     pub(crate) files: Vec<DiscoveredFile>,
     pub(crate) modalities_seen: BTreeSet<String>,
     pub(crate) root_dirs: BTreeSet<String>,
+    /// `SYMLINK_BROKEN` / `SYMLINK_CYCLE` for unresolvable links (Deno 3.x
+    /// `walk.ts`); such links are not registered as files.
+    pub(crate) link_issues: Vec<Issue>,
 }
 
 pub(crate) fn derivative_roots(root: &Path, link_mode: LinkMode) -> Vec<(String, PathBuf)> {
@@ -64,24 +68,26 @@ pub(crate) fn discover_dataset(
     root: &Path,
     bidsignore: Option<&Gitignore>,
     link_mode: LinkMode,
+    dataset_type: &str,
 ) -> Discovery {
+    let opaque = opaque_dirs(dataset_type);
     let mut files: Vec<DiscoveredFile> = Vec::new();
     let mut modalities_seen: BTreeSet<String> = BTreeSet::new();
     let mut root_dirs: BTreeSet<String> = BTreeSet::new();
+    let mut link_issues: Vec<Issue> = Vec::new();
 
     for entry in WalkDir::new(root)
         .follow_links(link_mode.follows_dirs())
         .into_iter()
-        .filter_entry(|e| !is_skip_dir(e.path(), root))
+        .filter_entry(|e| !is_skip_dir(e.path(), root, &opaque))
     {
-        // walkdir reports broken symlinks as `Err` when following links.
-        // Recover the path and register the file anyway so filename checks
-        // and sidecar lookup still see it. Cycles and other errors without a
-        // path are skipped silently.
-        let (entry_path, file_type) = match entry {
-            Ok(e) => (e.path().to_path_buf(), Some(e.file_type())),
+        // walkdir reports broken symlinks (and, when following, directory
+        // loops) as `Err`. Recover the path and classify the link below.
+        // Errors without a path are skipped silently.
+        let (entry_path, file_type, dir_loop) = match entry {
+            Ok(e) => (e.path().to_path_buf(), Some(e.file_type()), false),
             Err(err) => match err.path() {
-                Some(p) => (p.to_path_buf(), None),
+                Some(p) => (p.to_path_buf(), None, err.loop_ancestor().is_some()),
                 None => continue,
             },
         };
@@ -94,27 +100,13 @@ pub(crate) fn discover_dataset(
                 }
                 continue;
             }
+            // `no-follow` sees the link itself: drop symlinked directories.
             if ft.is_symlink() && is_symlink_to_dir(&entry_path) {
-                if !link_mode.registers_symlinked_dirs() {
-                    continue;
-                }
-                // In Deno-compatible parity mode, symlinked directories
-                // are seen as path entries but not traversed. Register
-                // them for filename validation (for example NOT_INCLUDED
-                // on `/sub-01`) without adding them to subject root dirs.
-                if link_mode.follows_dirs() {
-                    continue;
-                }
-            } else if !ft.is_file() && !ft.is_symlink() {
                 continue;
             }
-            // No further metadata check: ft (from walkdir's lstat) is
-            // already the symlink's own type. Symlinks to directories
-            // were handled at the `is_symlink_to_dir` branch above; any
-            // remaining symlink targets a file or is broken, and either
-            // way should register for filename validation. A redundant
-            // `symlink_metadata()` here was costing one syscall per
-            // entry without changing the outcome.
+            if !ft.is_file() && !ft.is_symlink() {
+                continue;
+            }
         }
 
         // Reject entries that don't sit under the canonical dataset root.
@@ -131,6 +123,26 @@ pub(crate) fn discover_dataset(
             if gi.matched_path_or_any_parents(&rel, false).is_ignore() {
                 continue;
             }
+        }
+
+        let maybe_link = file_type.is_none_or(|ft| ft.is_symlink());
+        if let Some(code) = maybe_link
+            .then(|| unresolved_link_code(&entry_path, dir_loop))
+            .flatten()
+        {
+            let target = fs::read_link(&entry_path).unwrap_or_default();
+            link_issues.push(Issue {
+                code: code.to_string(),
+                sub_code: None,
+                severity: Severity::Error,
+                location: bids_path,
+                rule: None,
+                issue_message: Some(format!("Symlink target: {}", target.display())),
+                affects: None,
+                line: None,
+                code_message: None,
+            });
+            continue;
         }
 
         let datatype = infer_datatype(&bids_path);
@@ -159,7 +171,56 @@ pub(crate) fn discover_dataset(
         files,
         modalities_seen,
         root_dirs,
+        link_issues,
     }
+}
+
+/// Classify an unresolvable symlink like Deno 3.x `readFileTree`: git-annex
+/// pointers (target basename is an annex key) are files even when their
+/// content is absent; other dangling links are `SYMLINK_BROKEN`, ELOOP is
+/// `SYMLINK_CYCLE`. A walkdir directory loop is reported as a cycle at the
+/// first looping link (Deno only fails once the kernel's symlink depth limit
+/// is hit, deeper in the repeated tree).
+fn unresolved_link_code(path: &Path, dir_loop: bool) -> Option<&'static str> {
+    if dir_loop {
+        return Some("SYMLINK_CYCLE");
+    }
+    let target = fs::read_link(path).ok()?;
+    let err = fs::metadata(path).err()?;
+    if target
+        .file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(is_annex_key)
+    {
+        return None;
+    }
+    if err.kind() == std::io::ErrorKind::NotFound {
+        return Some("SYMLINK_BROKEN");
+    }
+    (err.raw_os_error() == Some(ELOOP)).then_some("SYMLINK_CYCLE")
+}
+
+#[cfg(target_os = "linux")]
+const ELOOP: i32 = 40;
+#[cfg(not(target_os = "linux"))]
+const ELOOP: i32 = 62; // macOS / BSD
+
+/// `annexKeyRegex` in upstream `src/files/repo.ts`:
+/// `^[A-Z0-9]+-s\d+--[0-9a-fA-F]+`.
+fn is_annex_key(name: &str) -> bool {
+    let Some((backend, rest)) = name.split_once("-s") else {
+        return false;
+    };
+    let Some((size, digest)) = rest.split_once("--") else {
+        return false;
+    };
+    !backend.is_empty()
+        && backend
+            .bytes()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
+        && !size.is_empty()
+        && size.bytes().all(|b| b.is_ascii_digit())
+        && digest.bytes().next().is_some_and(|b| b.is_ascii_hexdigit())
 }
 
 fn is_symlink_to_dir(path: &Path) -> bool {
@@ -168,23 +229,39 @@ fn is_symlink_to_dir(path: &Path) -> bool {
 
 /// Skip directories that don't contribute to validation in default mode:
 ///   * `.git`, `.datalad` — version-control metadata
-///   * `derivatives` — Deno validator strips these from the main dataset
-///     tree and, when `--recursive` is set, validates conformant derivative
-///     datasets as separate results. Rust mirrors that by always pruning the
-///     root `derivatives/` directory here and discovering derivative roots in
-///     `derivative_roots`.
-fn is_skip_dir(p: &Path, root: &Path) -> bool {
+///   * root-level opaque directories (`rules.directories.<DatasetType>`,
+///     e.g. `docs/`, `logs/`) — Deno validates them as one unit and does
+///     not descend. This includes `derivatives`: Deno strips it from the
+///     main tree and, with `--recursive`, validates conformant derivative
+///     datasets separately (see `derivative_roots`).
+fn is_skip_dir(p: &Path, root: &Path, opaque: &BTreeSet<String>) -> bool {
     if p == root {
         return false;
     }
     let Some(name) = p.file_name().and_then(|s| s.to_str()) else {
         return false;
     };
-    // Only prune `derivatives` at the dataset root, not deep matches.
-    if name == "derivatives" && p.parent() == Some(root) {
+    if p.parent() == Some(root) && (name == "derivatives" || opaque.contains(name)) {
         return true;
     }
     matches!(name, ".git" | ".datalad")
+}
+
+fn opaque_dirs(dataset_type: &str) -> BTreeSet<String> {
+    let Some(rules) = bids_schema_codegen::schema()
+        .rules
+        .directories
+        .get(dataset_type)
+        .and_then(|v| v.as_object())
+    else {
+        return BTreeSet::new();
+    };
+    rules
+        .values()
+        .filter(|r| r.get("opaque").and_then(|v| v.as_bool()) == Some(true))
+        .filter_map(|r| r.get("name").and_then(|v| v.as_str()))
+        .map(str::to_string)
+        .collect()
 }
 
 /// Mirrors `modalityPrettyLookup` in `src/summary/summary.ts`. Modalities
@@ -209,12 +286,20 @@ fn pretty_modality(m: &str) -> &str {
     }
 }
 
-/// Build the ignore matcher: the BIDS default ignores (matching
-/// `src/files/ignore.ts::defaultIgnores`) plus any `<root>/.bidsignore` lines.
-/// Always returns a matcher (defaults make it useful even without
-/// `.bidsignore`).
+/// Build the ignore matcher: the BIDS default ignores and prunes (matching
+/// `src/files/ignore.ts::ignoreDefaults`; `.*` stands in for the `.**`
+/// prune) plus any `<root>/.bidsignore` lines. Always returns a matcher
+/// (defaults make it useful even without `.bidsignore`).
 pub(crate) fn load_bidsignore(root: &Path) -> Option<Gitignore> {
-    const DEFAULTS: &[&str] = &[".git**", ".*", "sourcedata/", "code/", "stimuli/", "log/"];
+    const DEFAULTS: &[&str] = &[
+        ".*",
+        "/sourcedata/",
+        "/derivatives/",
+        "/code/",
+        "/stimuli/",
+        "/log/",
+        "/doc/",
+    ];
     let mut builder = GitignoreBuilder::new(root);
     for pat in DEFAULTS {
         let _ = builder.add_line(None, pat);
@@ -294,15 +379,14 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
-    fn parity_registers_symlinked_subject_dir_without_traversing() {
+    fn parity_traverses_symlinked_subject_dir() {
         let tmp = tempfile::TempDir::new().unwrap();
         let root = make_symlinked_subject_dataset(tmp.path());
 
-        let discovery = discover_dataset(&root, None, LinkMode::Parity);
+        let discovery = discover_dataset(&root, None, LinkMode::Parity, "raw");
         let paths = discovered_paths(&discovery);
-        assert!(paths.contains(&"/sub-01".to_string()));
-        assert!(!paths.contains(&"/sub-01/anat/sub-01_T1w.nii.gz".to_string()));
-        assert!(!discovery.root_dirs.contains("sub-01"));
+        assert!(paths.contains(&"/sub-01/anat/sub-01_T1w.nii.gz".to_string()));
+        assert!(discovery.root_dirs.contains("sub-01"));
     }
 
     #[test]
@@ -311,7 +395,7 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let root = make_symlinked_subject_dataset(tmp.path());
 
-        let discovery = discover_dataset(&root, None, LinkMode::Follow);
+        let discovery = discover_dataset(&root, None, LinkMode::Follow, "raw");
         let paths = discovered_paths(&discovery);
         assert!(paths.contains(&"/sub-01/anat/sub-01_T1w.nii.gz".to_string()));
         assert!(discovery.root_dirs.contains("sub-01"));
@@ -323,7 +407,7 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let root = make_symlinked_subject_dataset(tmp.path());
 
-        let discovery = discover_dataset(&root, None, LinkMode::NoFollow);
+        let discovery = discover_dataset(&root, None, LinkMode::NoFollow, "raw");
         let paths = discovered_paths(&discovery);
         assert!(!paths.contains(&"/sub-01/anat/sub-01_T1w.nii.gz".to_string()));
         assert!(!discovery.root_dirs.contains("sub-01"));
@@ -331,7 +415,7 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
-    fn no_follow_registers_broken_symlink_file() {
+    fn broken_symlink_is_reported_not_registered() {
         let tmp = tempfile::TempDir::new().unwrap();
         let root = tmp.path().join("ds");
         let anat = root.join("sub-01").join("anat");
@@ -341,10 +425,68 @@ mod tests {
             anat.join("sub-01_T1w.nii.gz"),
         )
         .unwrap();
+        symlink("loop.nii.gz", anat.join("loop.nii.gz")).unwrap();
+        // Absent git-annex content is still a file, as in Deno.
+        symlink(
+            "../../.git/annex/objects/Xx/Yy/MD5E-s4--0123abcd.nii.gz/MD5E-s4--0123abcd.nii.gz",
+            anat.join("sub-01_T2w.nii.gz"),
+        )
+        .unwrap();
 
-        let discovery = discover_dataset(&root, None, LinkMode::NoFollow);
-        let paths = discovered_paths(&discovery);
-        assert!(paths.contains(&"/sub-01/anat/sub-01_T1w.nii.gz".to_string()));
-        assert!(discovery.root_dirs.contains("sub-01"));
+        for mode in [LinkMode::Parity, LinkMode::NoFollow] {
+            let discovery = discover_dataset(&root, None, mode, "raw");
+            let paths = discovered_paths(&discovery);
+            assert!(!paths.contains(&"/sub-01/anat/sub-01_T1w.nii.gz".to_string()));
+            assert!(paths.contains(&"/sub-01/anat/sub-01_T2w.nii.gz".to_string()));
+            let mut links = discovery
+                .link_issues
+                .iter()
+                .map(|i| (i.code.as_str(), i.location.as_str()))
+                .collect::<Vec<_>>();
+            links.sort();
+            assert_eq!(
+                links,
+                vec![
+                    ("SYMLINK_BROKEN", "/sub-01/anat/sub-01_T1w.nii.gz"),
+                    ("SYMLINK_CYCLE", "/sub-01/anat/loop.nii.gz"),
+                ],
+                "{mode:?}"
+            );
+        }
+    }
+
+    /// Deno 3.x: ignore defaults are root-anchored (`/code/`, `/doc/`, …)
+    /// and root opaque directories (`docs/`, `logs/`) are not descended.
+    #[test]
+    fn root_anchored_ignores_and_opaque_dirs() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        for rel in [
+            "doc/a.txt",
+            "docs/a.txt",
+            "logs/a.txt",
+            "code/a.txt",
+            "sub-01/code/a.txt",
+            "sub-01/docs/a.txt",
+            ".hidden/a.txt",
+        ] {
+            let path = root.join(rel);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, b"x").unwrap();
+        }
+        let gi = load_bidsignore(root);
+        let discovery = discover_dataset(root, gi.as_ref(), LinkMode::Parity, "raw");
+        let mut paths = discovered_paths(&discovery);
+        paths.sort();
+        assert_eq!(paths, vec!["/sub-01/code/a.txt", "/sub-01/docs/a.txt"]);
+    }
+
+    #[test]
+    fn annex_key_matches_upstream_regex() {
+        assert!(is_annex_key("SHA256E-s1234--abcdef.nii.gz"));
+        assert!(is_annex_key("MD5-s0--0a"));
+        assert!(!is_annex_key("SHA256E-s1234-m99--abcdef"));
+        assert!(!is_annex_key("sha256e-s1--ab"));
+        assert!(!is_annex_key("missing.nii.gz"));
     }
 }

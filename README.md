@@ -4,14 +4,14 @@ Lean Rust port of the [BIDS Validator](https://github.com/bids-standard/bids-val
 
 Current pin:
 
-- BIDS Validator: `2.4.1`
-- Upstream commit: `94ea9719efbbac7531fed8ad8a2a7bf764cee51f`
-- Rust package version: `0.1.20260517`
+- BIDS Validator: `3.0.2` (`@bids/schema` `1.2.7`)
+- Upstream commit: `f9c59e00f47f4e74e38e8c567d9073ad4b0a5b38`
+- Rust package version: `0.1.20261031`
 
 `bids-validator -V` reports the upstream validator version/commit and the Rust package version, for example:
 
 ```text
-bids-validator 2.4.1 commit 94ea971 rust 0.1.20260517
+bids-validator 3.0.2 commit f9c59e0 rust 0.1.20261031
 ```
 
 ## Layout
@@ -38,7 +38,7 @@ cargo build --release --locked
 target/release/bids-validator -V
 ```
 
-The upstream source is downloaded to `vendor/bids-validator-2.4.1` and is ignored by git.
+The upstream source is downloaded to `vendor/bids-validator-3.0.2` and is ignored by git.
 
 ## Tests
 
@@ -52,7 +52,7 @@ python3 tests/parity/run.py valid_headers
 After `scripts/fetch_upstream.py`, the Deno oracle exporter can be regenerated with:
 
 ```sh
-deno run --allow-read --allow-write --allow-env tests/oracle/export.ts
+deno run --allow-read --allow-write --allow-env --config vendor/bids-validator-3.0.2/deno.json tests/oracle/export.ts
 ```
 
 The exported oracle manifests under `tests/oracle/cases/` are generated from the pinned vendor release and are ignored by git.
@@ -91,7 +91,7 @@ Use `--content-mode thorough` to measure the Rust-only path that reads available
 
 Rust-vs-Deno comparison table for optimization reports. These values come from one local release run on 2026-05-17 using `--content-mode parity --link-mode no-follow`. Treat them as a coarse baseline; use multiple completed runs before making fine-grained optimization claims.
 
-The Deno column below is the pinned BIDS Validator `2.4.1` oracle used by this repository. It does not include [bids-standard/bids-validator#406](https://github.com/bids-standard/bids-validator/pull/406), an open DataLad/git-annex performance PR that shares the isomorphic-git cache and memoizes `git-annex` ref lookup. PR #406 reports a large CPU reduction on `ds005016`, so the 2.4.1 Deno number should not be read as the best possible TypeScript/Deno baseline.
+The Deno column below was measured with the previously pinned BIDS Validator `2.4.1`. It does not include [bids-standard/bids-validator#406](https://github.com/bids-standard/bids-validator/pull/406), an open DataLad/git-annex performance PR that shares the isomorphic-git cache and memoizes `git-annex` ref lookup. PR #406 reports a large CPU reduction on `ds005016`, so the 2.4.1 Deno number should not be read as the best possible TypeScript/Deno baseline.
 
 ```sh
 python3 benches/validator_perf.py --runs 1 --warmups 0 --content-mode parity --link-mode no-follow --include-deno pet002
@@ -110,7 +110,7 @@ The Rust `ds005016` run completed and emitted 15998 issues. This dataset contain
 Parity guardrail for tests, not benchmark timing:
 
 - Do not hide recurring mismatches in parity prose. Either fix them or list the exact accepted divergence in `tests/parity/run.py`.
-- `SIDECAR_KEY_RECOMMENDED / AcquisitionDuration` should not appear as a Rust-only mismatch for BIDS Validator 2.4.1. It is a deprecated sidecar field, and Deno 2.4.1 suppresses it. A Rust unit test and the `valid_headers` parity check cover this regression.
+- `SIDECAR_KEY_RECOMMENDED / AcquisitionDuration` should not appear as a Rust-only mismatch. It is a deprecated sidecar field, and Deno suppresses it. A Rust unit test and the `valid_headers` parity check cover this regression.
 
 Current benchmark notes:
 
