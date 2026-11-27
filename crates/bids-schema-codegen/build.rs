@@ -5,7 +5,8 @@
 //! schema. These replace runtime `serde_json::from_str` work that
 //! adds ~80–120 ms to startup on `valid_headers`-sized datasets.
 //!
-//! Emitted tables (see `write_formats`/`write_entities`/`write_modalities`):
+//! Emitted tables (see `write_datatypes`/`write_formats`/`write_entities`/`write_modalities`):
+//!   * `objects.datatypes` — datatype names.
 //!   * `objects.formats` — name + regex pattern + display name.
 //!   * `objects.entities` — entity name/key metadata.
 //!   * `rules.modalities` — modality → datatype membership.
@@ -13,7 +14,7 @@
 //! Each is pure, append-mostly data, cheap to serialize as a
 //! `&'static [...]`.
 //!
-//! Generated artifacts: `$OUT_DIR/generated_{formats,entities,modalities}.rs`,
+//! Generated artifacts: `$OUT_DIR/generated_{datatypes,formats,entities,modalities}.rs`,
 //! included by `src/lib.rs` via `include!`. The runtime
 //! `schema().objects.*` API is preserved (still IndexMap-shaped for
 //! serde) — these are *separate*, faster paths the anchored-regex cache
@@ -21,7 +22,7 @@
 //!
 //! NOTE: these tables are emitted from the *raw* on-disk schema, before
 //! the runtime patch layer in `src/patches.rs` runs. A schema patch that
-//! mutates `objects.formats`, `objects.entities`, or `rules.modalities`
+//! mutates `objects.datatypes`, `objects.formats`, `objects.entities`, or `rules.modalities`
 //! would NOT reach these static tables — such a patch must be applied
 //! here in `build.rs` too. Today's only patch touches `rules.sidecars`,
 //! which is not emitted statically, so the raw/patched split is safe.
@@ -48,9 +49,19 @@ fn main() {
         serde_json::from_str(&text).expect("schema-1.2.7.json failed to parse at build time");
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
+    write_datatypes(&schema, &out_dir.join("generated_datatypes.rs"));
     write_formats(&schema, &out_dir.join("generated_formats.rs"));
     write_entities(&schema, &out_dir.join("generated_entities.rs"));
     write_modalities(&schema, &out_dir.join("generated_modalities.rs"));
+}
+
+fn write_datatypes(schema: &serde_json::Value, dest: &std::path::Path) {
+    let datatypes: Vec<_> = schema["objects"]["datatypes"]
+        .as_object()
+        .expect("objects.datatypes missing")
+        .keys()
+        .collect();
+    fs::write(dest, format!("&{datatypes:?}")).expect("failed to write generated_datatypes.rs");
 }
 
 fn write_modalities(schema: &serde_json::Value, dest: &std::path::Path) {

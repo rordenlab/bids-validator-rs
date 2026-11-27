@@ -5,12 +5,12 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use anyhow::Result;
+use bids_validator_rs::ValidationReport;
 
 use crate::cli::OutputFormat;
-use crate::validate::CliValidationResult;
 
 pub(crate) fn write_output(
-    result: &CliValidationResult,
+    result: &ValidationReport,
     format: OutputFormat,
     outfile: Option<&Path>,
 ) -> Result<()> {
@@ -28,7 +28,7 @@ pub(crate) fn write_output(
 
 fn write_json_output<W: Write>(
     writer: &mut W,
-    result: &CliValidationResult,
+    result: &ValidationReport,
     format: OutputFormat,
 ) -> Result<()> {
     match format {
@@ -45,7 +45,7 @@ mod tests {
     use bids_core::issue::IssueList;
     use std::collections::BTreeMap;
 
-    fn format_output(result: &CliValidationResult, format: OutputFormat) -> Result<String> {
+    fn format_output(result: &ValidationReport, format: OutputFormat) -> Result<String> {
         Ok(match format {
             OutputFormat::Json => serde_json::to_string(result)?,
             OutputFormat::JsonPp => serde_json::to_string_pretty(result)?,
@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn json_pp_output_is_pretty_json() {
-        let result = CliValidationResult {
+        let result = ValidationReport {
             issues: IssueList::default(),
             derivatives_summary: BTreeMap::new(),
         };

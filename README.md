@@ -40,6 +40,32 @@ target/release/bids-validator -V
 
 The upstream source is downloaded to `vendor/bids-validator-3.0.2` and is ignored by git.
 
+## Rust library
+
+Add `bids-validator-rs` as a Git or path dependency in `Cargo.toml`. Pass the dataset root to `validate_path` to check the whole dataset:
+
+```rust
+use bids_validator_rs::{validate_path, ValidationOptions};
+
+let report = validate_path(dataset_root, &ValidationOptions::default())?;
+```
+
+The report lists BIDS errors and warnings. `Err` means the call failed, for example because the path does not exist. Set `recursive: true` to include derivatives. `report.has_errors()` checks the dataset and any derivatives in the report.
+
+To check specific BIDS datatypes across subjects and sessions, pass the dataset root with `include_datatypes`:
+
+```rust
+let options = ValidationOptions {
+    include_datatypes: Some(vec!["anat".into(), "perf".into()]),
+    ..ValidationOptions::default()
+};
+let report = validate_path(dataset_root, &options)?;
+```
+
+Use exact BIDS datatype names such as `anat`, `perf`, or `func`. An empty list or unknown name returns `Err`. A valid name does not have to be present in the dataset.
+
+The selection also applies to derivatives. The validator still checks the root `dataset_description.json` and `participants.tsv`, and any metadata used by the selected files. It resolves file references across the full dataset. Only whole-dataset runs check for unused sidecars.
+
 ## Tests
 
 ```sh

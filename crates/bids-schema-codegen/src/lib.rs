@@ -12,6 +12,7 @@
 //!     `include!`. These have zero runtime parse cost.
 //!
 //! Subtrees migrated so far:
+//!   * `objects.datatypes` → [`DATATYPES`] (datatype names).
 //!   * `objects.formats` → [`FORMATS`] (`(rule-key, pattern, display)`).
 //!   * `objects.entities` → [`ENTITIES`] (`(long-key, short-name, format)`).
 //!   * `rules.modalities` → [`MODALITY_OF`] (`(datatype, modality)`).
@@ -36,6 +37,9 @@ pub const BUNDLED_SCHEMA_JSON: &str = include_str!("../../../schemas/schema-1.2.
 include!(concat!(env!("OUT_DIR"), "/generated_formats.rs"));
 include!(concat!(env!("OUT_DIR"), "/generated_entities.rs"));
 include!(concat!(env!("OUT_DIR"), "/generated_modalities.rs"));
+
+/// BIDS datatype names accepted by the bundled schema.
+pub static DATATYPES: &[&str] = include!(concat!(env!("OUT_DIR"), "/generated_datatypes.rs"));
 
 /// Subset of the BIDS schema we actually need today.
 #[derive(Debug, Deserialize)]

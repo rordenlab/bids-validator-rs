@@ -8,25 +8,23 @@ use anyhow::Result;
 use clap::Parser;
 
 use bids_schema_codegen::load_schema_context;
+use bids_validator_rs::validate_path;
 
 mod cli;
-mod discover;
 mod output;
-mod validate;
 
 use cli::{reject_unsupported_options, resolve_output_format, Cli};
 use output::write_output;
-use validate::{has_errors, validate_cli};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let output_format = resolve_output_format(&cli)?;
     reject_unsupported_options(&cli)?;
 
-    let schema_context = load_schema_context(cli.schema.as_deref())?;
-    let result = validate_cli(&cli, &schema_context)?;
+    load_schema_context(cli.schema.as_deref())?;
+    let result = validate_path(&cli.dataset, &cli.validation_options())?;
     write_output(&result, output_format, cli.outfile.as_deref())?;
-    if has_errors(&result) {
+    if result.has_errors() {
         std::process::exit(1);
     }
 

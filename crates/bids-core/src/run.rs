@@ -1,15 +1,15 @@
 //! Validation orchestration.
 //!
 //! Owns the per-file validation loop that previously lived inline in
-//! `bids-cli/src/main.rs`. The CLI is responsible for argument parsing
-//! and dataset discovery (walking the filesystem); after that it hands
-//! a [`DatasetContext`] to [`validate_dataset`] and emits whatever
-//! that returns.
+//! `bids-cli/src/main.rs`. The CLI is responsible for argument parsing.
+//! The root library handles dataset discovery (walking the filesystem)
+//! and hands a [`DatasetContext`] to [`validate_dataset`].
 //!
 //! This split makes the per-file logic testable without going through
 //! a CLI invocation, and gives non-CLI callers (Python wheels, WASM
 //! bindings, etc.) a clean entry point.
 
+use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -32,7 +32,7 @@ use crate::tables::check_tables;
 use crate::tiff::{ome_to_json, parse_tiff, tiff_to_json};
 use crate::tsv::{load_headerless_tsv, load_tsv, TsvColumns};
 
-/// A file discovered by the dataset walker. Produced by the CLI (or
+/// A file discovered by the dataset walker. Produced by the root library (or
 /// any other front-end) and handed to [`DatasetContext`] for
 /// validation.
 #[derive(Debug, Clone)]
@@ -51,8 +51,7 @@ pub struct DiscoveredFile {
 }
 
 /// All inputs the per-file validator needs. Constructed by the
-/// front-end (CLI today; library callers later) after dataset
-/// discovery completes. Consumed by [`validate_dataset`].
+/// front-end after dataset discovery completes. Consumed by [`validate_dataset`].
 pub struct DatasetContext {
     pub root: PathBuf,
     pub files: Vec<DiscoveredFile>,
@@ -77,9 +76,27 @@ pub struct DatasetContext {
 ///
 /// This is the per-file Pass 2 of the previous monolithic CLI; Pass 1
 /// (filesystem walking, modality summary, etc.) is the caller's
-/// responsibility because it touches CLI-specific concerns
+/// responsibility because it touches filesystem concerns
 /// (`walkdir`, `.bidsignore`, etc.).
 pub fn validate_dataset(ctx: &DatasetContext) -> ValidationResult {
+    run_validation(ctx, None).0
+}
+
+/// Validate matching files and the sidecars and association targets they use.
+/// All files remain visible to inheritance and `exists()` checks. The missing
+/// dataset description check still runs; the whole-dataset orphan check does not.
+/// Returns the findings and filesystem paths resolved by inheritance or association.
+pub fn validate_matching_files(
+    ctx: &DatasetContext,
+    matches: impl Fn(&DiscoveredFile) -> bool,
+) -> (ValidationResult, HashSet<PathBuf>) {
+    run_validation(ctx, Some(&matches))
+}
+
+fn run_validation(
+    ctx: &DatasetContext,
+    matches: Option<&dyn Fn(&DiscoveredFile) -> bool>,
+) -> (ValidationResult, HashSet<PathBuf>) {
     // Build the dataset's file path set from the canonical arena for
     // `bids_expr::exists(...)` selectors. Keeping this derivation here
     // prevents library callers from accidentally validating with an
@@ -110,66 +127,72 @@ pub fn validate_dataset(ctx: &DatasetContext) -> ValidationResult {
     //
     // `BIDS_VALIDATOR_JOBS=1` forces sequential — used by the M4 byte-
     // equality regression test and as an escape hatch for debugging.
+    // Scoped runs keep this order within each pass: selected files first,
+    // then the dependencies they used.
     let mut validated = SidecarKeyValidated::new();
     let mut viewed_sidecars: HashSet<PathBuf> = HashSet::new();
-    let merge_bundle = |bundle: PerFileBundle,
-                        issues: &mut Vec<Issue>,
-                        validated: &mut SidecarKeyValidated,
-                        viewed_sidecars: &mut HashSet<PathBuf>| {
-        issues.extend(bundle.issues);
+    let mut merge = |bundle: PerFileBundle, viewed: &mut HashSet<PathBuf>| {
+        result.issues.issues.extend(bundle.issues);
         for candidate in bundle.dedup_candidates {
             if !validated.check_and_record(&candidate.key.0, &candidate.key.1) {
-                issues.extend(candidate.issues);
+                result.issues.issues.extend(candidate.issues);
             }
         }
-        viewed_sidecars.extend(bundle.viewed_sidecars);
+        viewed.extend(bundle.viewed_sidecars);
     };
 
-    if jobs_env() == Some(1) || ctx.files.len() < PARALLEL_FILE_THRESHOLD {
+    if let Some(matches) = matches {
+        let (mut targets, mut remaining): (Vec<_>, Vec<_>) =
+            ctx.files.iter().partition(|file| matches(file));
+        while !targets.is_empty() {
+            validate_files(ctx, &dataset_files, &targets, |b| {
+                merge(b, &mut viewed_sidecars)
+            });
+            // A dependency can have direct-only diagnostics (e.g. JSON_INVALID)
+            // or dependencies of its own. Visit each at most once, in discovery order.
+            (targets, remaining) = remaining
+                .into_iter()
+                .partition(|f| viewed_sidecars.contains(&f.fs_path));
+        }
+    } else {
+        validate_files(ctx, &dataset_files, &ctx.files, |b| {
+            merge(b, &mut viewed_sidecars)
+        });
+        emit_orphan_sidecar_issues(ctx, &viewed_sidecars, &mut result.issues.issues);
+    }
+    (result, viewed_sidecars)
+}
+
+/// Process either the full file slice or references to selected entries.
+fn validate_files<T: Borrow<DiscoveredFile> + Sync>(
+    ctx: &DatasetContext,
+    dataset_files: &HashSet<String>,
+    files: &[T],
+    mut merge: impl FnMut(PerFileBundle),
+) {
+    let validate = |file: &T| validate_one_file(ctx, file.borrow(), dataset_files);
+    if jobs_env() == Some(1) || files.len() < PARALLEL_FILE_THRESHOLD {
         // Sequential streaming: no bundles vector materialized, no
         // rayon thread pool. Used when the user forces it via
         // `BIDS_VALIDATOR_JOBS=1` and on small datasets where the
         // thread-pool startup cost dominates.
-        for file in &ctx.files {
-            let bundle = validate_one_file(ctx, file, &dataset_files);
-            merge_bundle(
-                bundle,
-                &mut result.issues.issues,
-                &mut validated,
-                &mut viewed_sidecars,
-            );
+        for file in files {
+            merge(validate(file));
         }
     } else {
         use rayon::iter::{IntoParallelIterator, ParallelIterator};
         const CHUNK_SIZE: usize = 1024;
         let pool = configured_rayon_pool();
-        for chunk in ctx.files.chunks(CHUNK_SIZE) {
+        for chunk in files.chunks(CHUNK_SIZE) {
             let bundles: Vec<PerFileBundle> = match &pool {
-                Some(p) => p.install(|| {
-                    chunk
-                        .into_par_iter()
-                        .map(|f| validate_one_file(ctx, f, &dataset_files))
-                        .collect()
-                }),
-                None => chunk
-                    .iter()
-                    .map(|f| validate_one_file(ctx, f, &dataset_files))
-                    .collect(),
+                Some(p) => p.install(|| chunk.into_par_iter().map(validate).collect()),
+                None => chunk.iter().map(validate).collect(),
             };
             for bundle in bundles {
-                merge_bundle(
-                    bundle,
-                    &mut result.issues.issues,
-                    &mut validated,
-                    &mut viewed_sidecars,
-                );
+                merge(bundle);
             }
         }
     }
-
-    emit_orphan_sidecar_issues(ctx, &viewed_sidecars, &mut result.issues.issues);
-
-    result
 }
 
 /// Datasets smaller than this go fully sequential, skipping rayon

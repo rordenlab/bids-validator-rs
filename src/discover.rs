@@ -13,8 +13,6 @@ use bids_core::issue::{Issue, Severity};
 use bids_core::run::DiscoveredFile;
 use bids_schema_codegen::modality_of;
 
-use crate::cli::LinkMode;
-
 pub(crate) struct Discovery {
     pub(crate) files: Vec<DiscoveredFile>,
     pub(crate) modalities_seen: BTreeSet<String>,
@@ -24,7 +22,7 @@ pub(crate) struct Discovery {
     pub(crate) link_issues: Vec<Issue>,
 }
 
-pub(crate) fn derivative_roots(root: &Path, link_mode: LinkMode) -> Vec<(String, PathBuf)> {
+pub(crate) fn derivative_roots(root: &Path, follow_symlink_dirs: bool) -> Vec<(String, PathBuf)> {
     let derivatives = root.join("derivatives");
     let Ok(entries) = fs::read_dir(&derivatives) else {
         return Vec::new();
@@ -41,7 +39,7 @@ pub(crate) fn derivative_roots(root: &Path, link_mode: LinkMode) -> Vec<(String,
         let Ok(ft) = entry.file_type() else {
             continue;
         };
-        if ft.is_symlink() && !link_mode.follows_dirs() {
+        if ft.is_symlink() && !follow_symlink_dirs {
             continue;
         }
         if !path.is_dir() || !path.join("dataset_description.json").is_file() {
@@ -67,7 +65,7 @@ pub(crate) fn derivative_roots(root: &Path, link_mode: LinkMode) -> Vec<(String,
 pub(crate) fn discover_dataset(
     root: &Path,
     bidsignore: Option<&Gitignore>,
-    link_mode: LinkMode,
+    follow_symlink_dirs: bool,
     dataset_type: &str,
 ) -> Discovery {
     let opaque = opaque_dirs(dataset_type);
@@ -77,7 +75,7 @@ pub(crate) fn discover_dataset(
     let mut link_issues: Vec<Issue> = Vec::new();
 
     for entry in WalkDir::new(root)
-        .follow_links(link_mode.follows_dirs())
+        .follow_links(follow_symlink_dirs)
         .into_iter()
         .filter_entry(|e| !is_skip_dir(e.path(), root, &opaque))
     {
@@ -382,23 +380,11 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
-    fn parity_traverses_symlinked_subject_dir() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let root = make_symlinked_subject_dataset(tmp.path());
-
-        let discovery = discover_dataset(&root, None, LinkMode::Parity, "raw");
-        let paths = discovered_paths(&discovery);
-        assert!(paths.contains(&"/sub-01/anat/sub-01_T1w.nii.gz".to_string()));
-        assert!(discovery.root_dirs.contains("sub-01"));
-    }
-
-    #[test]
-    #[cfg(unix)]
     fn follow_traverses_symlinked_subject_dir() {
         let tmp = tempfile::TempDir::new().unwrap();
         let root = make_symlinked_subject_dataset(tmp.path());
 
-        let discovery = discover_dataset(&root, None, LinkMode::Follow, "raw");
+        let discovery = discover_dataset(&root, None, true, "raw");
         let paths = discovered_paths(&discovery);
         assert!(paths.contains(&"/sub-01/anat/sub-01_T1w.nii.gz".to_string()));
         assert!(discovery.root_dirs.contains("sub-01"));
@@ -410,7 +396,7 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let root = make_symlinked_subject_dataset(tmp.path());
 
-        let discovery = discover_dataset(&root, None, LinkMode::NoFollow, "raw");
+        let discovery = discover_dataset(&root, None, false, "raw");
         let paths = discovered_paths(&discovery);
         assert!(!paths.contains(&"/sub-01/anat/sub-01_T1w.nii.gz".to_string()));
         assert!(!discovery.root_dirs.contains("sub-01"));
@@ -436,8 +422,8 @@ mod tests {
         )
         .unwrap();
 
-        for mode in [LinkMode::Parity, LinkMode::NoFollow] {
-            let discovery = discover_dataset(&root, None, mode, "raw");
+        for follow_symlink_dirs in [true, false] {
+            let discovery = discover_dataset(&root, None, follow_symlink_dirs, "raw");
             let paths = discovered_paths(&discovery);
             assert!(!paths.contains(&"/sub-01/anat/sub-01_T1w.nii.gz".to_string()));
             assert!(paths.contains(&"/sub-01/anat/sub-01_T2w.nii.gz".to_string()));
@@ -453,7 +439,7 @@ mod tests {
                     ("SYMLINK_BROKEN", "/sub-01/anat/sub-01_T1w.nii.gz"),
                     ("SYMLINK_CYCLE", "/sub-01/anat/loop.nii.gz"),
                 ],
-                "{mode:?}"
+                "follow_symlink_dirs={follow_symlink_dirs}"
             );
         }
     }
@@ -478,7 +464,7 @@ mod tests {
             fs::write(path, b"x").unwrap();
         }
         let gi = load_bidsignore(root);
-        let discovery = discover_dataset(root, gi.as_ref(), LinkMode::Parity, "raw");
+        let discovery = discover_dataset(root, gi.as_ref(), true, "raw");
         let mut paths = discovered_paths(&discovery);
         paths.sort();
         assert_eq!(paths, vec!["/sub-01/code/a.txt", "/sub-01/docs/a.txt"]);

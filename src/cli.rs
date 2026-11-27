@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use anyhow::{bail, Result};
+use bids_validator_rs::ValidationOptions;
 use clap::{ArgAction, Parser, ValueEnum};
 
 pub(crate) fn version_string() -> &'static str {
@@ -164,9 +165,21 @@ pub(crate) enum LinkMode {
     NoFollow,
 }
 
-impl LinkMode {
-    pub(crate) fn follows_dirs(self) -> bool {
-        !matches!(self, LinkMode::NoFollow)
+impl Cli {
+    pub(crate) fn validation_options(&self) -> ValidationOptions {
+        ValidationOptions {
+            content_mode: match self.content_mode {
+                ContentMode::Parity => bids_validator_rs::ContentMode::Parity,
+                ContentMode::Thorough => bids_validator_rs::ContentMode::Thorough,
+            },
+            follow_symlink_dirs: self.link_mode != LinkMode::NoFollow,
+            recursive: self.recursive && !self.prune,
+            ignore_warnings: self.ignore_warnings,
+            ignore_nifti_headers: self.ignore_nifti_headers,
+            dataset_types: self.dataset_types.clone(),
+            blacklist_modalities: self.blacklist_modalities.clone(),
+            include_datatypes: None,
+        }
     }
 }
 

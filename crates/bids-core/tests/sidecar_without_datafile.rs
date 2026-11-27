@@ -25,7 +25,7 @@ use bids_core::inheritance::build_index;
 use bids_core::metadata::DatasetSubjects;
 use bids_core::policy::{ContentMode, ContentPolicy};
 use bids_core::rules::DatasetType;
-use bids_core::run::{validate_dataset, DatasetContext, DiscoveredFile};
+use bids_core::run::{validate_dataset, validate_matching_files, DatasetContext, DiscoveredFile};
 
 use tempfile::TempDir;
 
@@ -218,6 +218,18 @@ fn flags_sidecar_field_overrides() {
         issue_subcodes(&result.issues.issues, "SIDECAR_FIELD_OVERRIDE"),
         vec!["rootOverwrite", "subOverwrite"]
     );
+}
+
+#[test]
+fn validating_anat_does_not_read_unrelated_func_json() {
+    let anat = "/sub-01/anat/sub-01_T1w.nii";
+    let (_tmp, ctx) = build_ctx(&[
+        (anat, b""),
+        ("/sub-01/func/sub-01_task-rest_bold.json", b"{"),
+    ]);
+    let (report, _) = validate_matching_files(&ctx, |file| file.datatype == "anat");
+    assert_eq!(issue_locations(&report.issues.issues, "EMPTY_FILE"), [anat]);
+    assert_eq!(ctx.cache.misses(), 0, "the only text file was out of scope");
 }
 
 #[test]

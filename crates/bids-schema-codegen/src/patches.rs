@@ -78,7 +78,7 @@ mod tests {
     }
 
     /// Governance guard: patches must NOT touch subtrees that `build.rs`
-    /// emits as static tables (`objects.formats`, `objects.entities`,
+    /// emits as static tables (`objects.datatypes`, `objects.formats`, `objects.entities`,
     /// `rules.modalities`) — those are generated from the *raw* schema
     /// and would silently diverge from the patched runtime `schema()`.
     /// If a future patch needs to mutate one of these, apply it in
@@ -88,7 +88,12 @@ mod tests {
         let raw = raw_schema();
         let mut patched = raw.clone();
         apply_all(&mut patched);
-        for ptr in ["/objects/formats", "/objects/entities", "/rules/modalities"] {
+        for ptr in [
+            "/objects/datatypes",
+            "/objects/formats",
+            "/objects/entities",
+            "/rules/modalities",
+        ] {
             assert_eq!(
                 raw.pointer(ptr),
                 patched.pointer(ptr),
